@@ -52,8 +52,10 @@ fn ensure_ffmpeg() -> Result<(), String> {
     let tmp = manifest.join("target").join("ffmpeg-fetch");
     fs::create_dir_all(&tmp).map_err(|e| e.to_string())?;
 
-    if triple.contains("apple-darwin") {
-        fetch_macos(&tmp, &ffmpeg, &ffprobe)?;
+    if triple == "aarch64-apple-darwin" {
+        fetch_macos_arm64(&tmp, &ffmpeg, &ffprobe)?;
+    } else if triple == "x86_64-apple-darwin" {
+        fetch_macos_x86_64(&tmp, &ffmpeg, &ffprobe)?;
     } else if triple.contains("linux") {
         let arch = if triple.starts_with("aarch64") { "linuxarm64" } else { "linux64" };
         fetch_btbn(&tmp, arch, "tar.xz", &ffmpeg, &ffprobe)?;
@@ -106,15 +108,45 @@ fn curl(url: &str, dst: &Path) -> Result<(), String> {
     run(Command::new("curl").args(["-fsSL", "-o"]).arg(dst).arg(url))
 }
 
-fn fetch_macos(tmp: &Path, ffmpeg: &Path, ffprobe: &Path) -> Result<(), String> {
-    // evermeet.cx returns universal binaries (arm64 + x86_64) so the same fetch
-    // covers both Mac targets.
+fn fetch_macos_x86_64(tmp: &Path, ffmpeg: &Path, ffprobe: &Path) -> Result<(), String> {
+    // evermeet.cx's default endpoint returns x86_64 builds.
+    fetch_two_zips(
+        tmp,
+        "https://evermeet.cx/ffmpeg/getrelease/zip",
+        "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip",
+        ffmpeg,
+        ffprobe,
+    )
+}
+
+fn fetch_macos_arm64(tmp: &Path, ffmpeg: &Path, ffprobe: &Path) -> Result<(), String> {
+    // evermeet.cx is x86_64-only at the time of writing. Running an x86_64
+    // ffprobe on an Apple Silicon Mac that hasn't installed Rosetta 2 fails
+    // silently when spawned as a sidecar, which is the bug we're fixing.
+    // osxexperts.net ships native arm64 builds; their URLs are version-pinned.
+    fetch_two_zips(
+        tmp,
+        "https://www.osxexperts.net/ffmpeg711arm.zip",
+        "https://www.osxexperts.net/ffprobe711arm.zip",
+        ffmpeg,
+        ffprobe,
+    )
+}
+
+fn fetch_two_zips(
+    tmp: &Path,
+    ffmpeg_url: &str,
+    ffprobe_url: &str,
+    ffmpeg: &Path,
+    ffprobe: &Path,
+) -> Result<(), String> {
     let ffmpeg_zip = tmp.join("ffmpeg.zip");
     let ffprobe_zip = tmp.join("ffprobe.zip");
-    curl("https://evermeet.cx/ffmpeg/getrelease/zip", &ffmpeg_zip)?;
-    curl("https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip", &ffprobe_zip)?;
+    curl(ffmpeg_url, &ffmpeg_zip)?;
+    curl(ffprobe_url, &ffprobe_zip)?;
 
     let extract = tmp.join("extract");
+    let _ = fs::remove_dir_all(&extract);
     fs::create_dir_all(&extract).map_err(|e| e.to_string())?;
     run(Command::new("unzip")
         .args(["-o", "-q"])
@@ -127,8 +159,8 @@ fn fetch_macos(tmp: &Path, ffmpeg: &Path, ffprobe: &Path) -> Result<(), String> 
         .arg("-d")
         .arg(&extract))?;
 
-    fs::copy(extract.join("ffmpeg"), ffmpeg).map_err(|e| e.to_string())?;
-    fs::copy(extract.join("ffprobe"), ffprobe).map_err(|e| e.to_string())?;
+    fs::copy(find_binary(&extract, "ffmpeg")?, ffmpeg).map_err(|e| e.to_string())?;
+    fs::copy(find_binary(&extract, "ffprobe")?, ffprobe).map_err(|e| e.to_string())?;
     Ok(())
 }
 
