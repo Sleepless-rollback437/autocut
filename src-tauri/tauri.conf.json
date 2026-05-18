@@ -4,9 +4,9 @@
   "version": "0.3.2",
   "identifier": "dev.cobanov.autocut",
   "build": {
-    "beforeDevCommand": "node_modules/.bin/vite",
+    "beforeDevCommand": "pnpm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "node_modules/.bin/vite build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
