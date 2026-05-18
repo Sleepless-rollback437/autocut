@@ -21,6 +21,14 @@ use crate::probe::{probe, VideoInfo};
 use crate::vad::{detect as detect_vad, VadParams};
 use crate::waveform::extract_waveform;
 
+/// Render an anyhow::Error including the full chain of `with_context`
+/// messages. Plain `.to_string()` would only show the outermost message,
+/// hiding the actual root cause (e.g. "spawning ffprobe at ...: No such
+/// file or directory" instead of just "spawning ffprobe at ...").
+fn fmt_err(e: impl std::fmt::Display) -> String {
+    format!("{e:#}")
+}
+
 #[derive(Default)]
 pub struct AppState {
     /// Single-job cancellation flag. Set by `cancel_export`, polled by the
@@ -62,22 +70,51 @@ pub async fn compute_waveform(
     path: String,
     target_bins: usize,
 ) -> Result<Vec<f32>, String> {
-    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(fmt_err)?;
     let video = PathBuf::from(&path);
     tauri::async_runtime::spawn_blocking(move || extract_waveform(&ffmpeg, &video, target_bins))
         .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+        .map_err(fmt_err)?
+        .map_err(fmt_err)
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiagnosticInfo {
+    pub app_version: &'static str,
+    pub target_os: &'static str,
+    pub target_arch: &'static str,
+    pub ffmpeg_path: Option<String>,
+    pub ffmpeg_exists: bool,
+    pub ffprobe_path: Option<String>,
+    pub ffprobe_exists: bool,
+}
+
+/// Snapshot of build/runtime info we ask the user to paste into bug reports
+/// when something fails. No PII; just versions and paths.
+#[tauri::command]
+pub fn diagnostic_info(app: AppHandle) -> DiagnosticInfo {
+    let rd = resource_dir(&app);
+    let ffmpeg = ffmpeg_path(rd.as_deref()).ok();
+    let ffprobe = ffprobe_path(rd.as_deref()).ok();
+    DiagnosticInfo {
+        app_version: env!("CARGO_PKG_VERSION"),
+        target_os: std::env::consts::OS,
+        target_arch: std::env::consts::ARCH,
+        ffmpeg_exists: ffmpeg.as_ref().map(|p| p.exists()).unwrap_or(false),
+        ffmpeg_path: ffmpeg.map(|p| p.display().to_string()),
+        ffprobe_exists: ffprobe.as_ref().map(|p| p.exists()).unwrap_or(false),
+        ffprobe_path: ffprobe.map(|p| p.display().to_string()),
+    }
 }
 
 #[tauri::command]
 pub async fn open_video(app: AppHandle, path: String) -> Result<VideoInfo, String> {
-    let ffprobe = ffprobe_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let ffprobe = ffprobe_path(resource_dir(&app).as_deref()).map_err(fmt_err)?;
     let video = PathBuf::from(&path);
     tauri::async_runtime::spawn_blocking(move || probe(&ffprobe, &video))
         .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+        .map_err(fmt_err)?
+        .map_err(fmt_err)
 }
 
 #[tauri::command]
@@ -87,7 +124,7 @@ pub async fn detect_silence(
     duration: f64,
     params: DetectParams,
 ) -> Result<DetectResult, String> {
-    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(fmt_err)?;
     let video = PathBuf::from(&path);
     let range = params.preview_range;
     let pad = params.pad;
@@ -95,13 +132,13 @@ pub async fn detect_silence(
     let offset = range.map(|(s, _)| s).unwrap_or(0.0);
 
     tauri::async_runtime::spawn_blocking(move || -> Result<DetectResult, String> {
-        let samples = extract_pcm(&ffmpeg, &video, range).map_err(|e| e.to_string())?;
-        let segments = detect_vad(&samples, vad_params, offset).map_err(|e| e.to_string())?;
+        let samples = extract_pcm(&ffmpeg, &video, range).map_err(fmt_err)?;
+        let segments = detect_vad(&samples, vad_params, offset).map_err(fmt_err)?;
         let cutlist = CutList::from_speech_segments(&segments, duration, pad);
         Ok(DetectResult { cutlist })
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(fmt_err)?
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,7 +160,7 @@ pub async fn export_mp4(
     state: State<'_, AppState>,
     args: ExportMp4Args,
 ) -> Result<(), String> {
-    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(fmt_err)?;
     let source = PathBuf::from(&args.source);
     let output = PathBuf::from(&args.output);
 
@@ -151,12 +188,12 @@ pub async fn export_mp4(
             cancel_for_worker,
             on_progress,
         );
-        let _ = tx.send(res.map_err(|e| e.to_string()));
+        let _ = tx.send(res.map_err(fmt_err));
     });
 
     let result = tauri::async_runtime::spawn_blocking(move || rx.recv().unwrap_or_else(|e| Err(e.to_string())))
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(fmt_err)?;
 
     {
         let mut guard = state.export_cancel.lock().unwrap();
@@ -195,6 +232,6 @@ pub fn export_fcpxml(args: ExportFcpxmlArgs) -> Result<(), String> {
             title: &args.title,
         },
     );
-    std::fs::write(&args.output, xml).map_err(|e| e.to_string())?;
+    std::fs::write(&args.output, xml).map_err(fmt_err)?;
     Ok(())
 }

@@ -32,12 +32,20 @@ pub fn probe(ffprobe: &Path, video: &Path) -> Result<VideoInfo> {
         ])
         .arg(video)
         .output()
-        .with_context(|| format!("running ffprobe on {}", video.display()))?;
+        .with_context(|| {
+            format!(
+                "spawning ffprobe binary at {} for video {}",
+                ffprobe.display(),
+                video.display()
+            )
+        })?;
     if !out.status.success() {
         return Err(anyhow!(
-            "ffprobe failed ({}): {}",
+            "ffprobe at {} exited with {} on {}: {}",
+            ffprobe.display(),
             out.status,
-            String::from_utf8_lossy(&out.stderr)
+            video.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
 

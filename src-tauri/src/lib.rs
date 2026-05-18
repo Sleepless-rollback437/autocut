@@ -24,6 +24,7 @@ pub fn run() {
             commands::export_mp4,
             commands::cancel_export,
             commands::export_fcpxml,
+            commands::diagnostic_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running autocut");

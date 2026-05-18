@@ -3,15 +3,54 @@
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { open } from "@tauri-apps/plugin-dialog";
+  import { diagnosticInfo } from "../lib/api";
   import { editor } from "../lib/store.svelte";
 
   let hovering = $state(false);
+  let copied = $state(false);
+  let lastAttemptedPath = $state<string | null>(null);
 
   async function openExternal(url: string) {
     try {
       await invoke("plugin:shell|open", { path: url });
     } catch {
       /* fall through silently — link is plain text if the open fails */
+    }
+  }
+
+  async function copyDetails() {
+    if (!editor.error) return;
+    let diag = "";
+    try {
+      const d = await diagnosticInfo();
+      diag = [
+        `app version    ${d.app_version}`,
+        `target         ${d.target_os}/${d.target_arch}`,
+        `ffmpeg         ${d.ffmpeg_exists ? "found" : "MISSING"} at ${d.ffmpeg_path ?? "(unresolved)"}`,
+        `ffprobe        ${d.ffprobe_exists ? "found" : "MISSING"} at ${d.ffprobe_path ?? "(unresolved)"}`,
+      ].join("\n");
+    } catch (e) {
+      diag = `(diagnostic_info command failed: ${String(e)})`;
+    }
+    const report = [
+      "autocut error report",
+      "====================",
+      "",
+      "error:",
+      editor.error,
+      "",
+      "video path:",
+      lastAttemptedPath ?? "(unknown)",
+      "",
+      "environment:",
+      diag,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(report);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch {
+      /* clipboard may be locked; fall back is the visible textarea below */
     }
   }
 
@@ -28,6 +67,7 @@
           hovering = false;
           const p = event.payload.paths[0];
           if (!p) return;
+          lastAttemptedPath = p;
           if (/\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(p)) {
             editor.loadVideo(p);
           } else {
@@ -50,7 +90,10 @@
         },
       ],
     });
-    if (typeof selected === "string") editor.loadVideo(selected);
+    if (typeof selected === "string") {
+      lastAttemptedPath = selected;
+      editor.loadVideo(selected);
+    }
   }
 </script>
 
@@ -94,9 +137,19 @@
 
     {#if editor.error}
       <div class="error">
-        <div class="error-head mono">couldn't open that video</div>
-        <div class="error-body mono">{editor.error}</div>
-        {#if /gatekeeper|denied|not permitted|operation not permitted|killed/i.test(editor.error)}
+        <div class="error-row">
+          <span class="error-head mono">couldn't open that video</span>
+          <div class="error-actions">
+            <button class="error-btn" onclick={copyDetails} title="Copy a full error report (error + diagnostic info) to the clipboard">
+              {copied ? "copied" : "copy details"}
+            </button>
+            <button class="error-btn" onclick={() => (editor.error = null)} title="Dismiss this error">
+              dismiss
+            </button>
+          </div>
+        </div>
+        <pre class="error-body mono">{editor.error}</pre>
+        {#if /gatekeeper|denied|not permitted|operation not permitted|killed|cannot be opened/i.test(editor.error)}
           <div class="error-hint">
             macOS is blocking the bundled ffmpeg helper. open Terminal and
             run once:
@@ -211,14 +264,21 @@
 
   .error {
     margin-top: 16px;
-    max-width: 480px;
+    max-width: 560px;
     padding: 12px 14px;
     background: hsl(0 84% 65% / 0.07);
     border: 1px solid hsl(0 84% 65% / 0.35);
     border-radius: var(--radius);
     text-align: left;
     display: grid;
-    gap: 6px;
+    gap: 8px;
+  }
+  .error-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
   }
   .error-head {
     color: var(--neg);
@@ -226,14 +286,44 @@
     font-weight: 500;
     letter-spacing: 0.02em;
   }
+  .error-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .error-btn {
+    background: transparent;
+    border: 1px solid hsl(0 84% 65% / 0.35);
+    color: var(--neg);
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    text-transform: lowercase;
+    transition: background 120ms, color 120ms, border-color 120ms;
+  }
+  .error-btn:hover {
+    background: hsl(0 84% 65% / 0.12);
+    color: hsl(0 84% 85%);
+  }
   .error-body {
+    margin: 0;
     color: var(--muted);
     font-size: 11px;
-    line-height: 1.5;
+    line-height: 1.55;
+    white-space: pre-wrap;
     word-break: break-word;
+    user-select: text;
+    background: hsl(0 0% 0% / 0.25);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid hsl(0 84% 65% / 0.2);
+    max-height: 200px;
+    overflow-y: auto;
   }
   .error-hint {
-    margin-top: 4px;
+    margin-top: 2px;
     padding-top: 8px;
     border-top: 1px solid hsl(0 84% 65% / 0.2);
     font-size: 11px;

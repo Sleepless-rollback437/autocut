@@ -38,3 +38,13 @@ export type ExportProgressEvent = {
   pct: number;
   message: string;
 };
+
+export type DiagnosticInfo = {
+  app_version: string;
+  target_os: string;
+  target_arch: string;
+  ffmpeg_path: string | null;
+  ffmpeg_exists: boolean;
+  ffprobe_path: string | null;
+  ffprobe_exists: boolean;
+};

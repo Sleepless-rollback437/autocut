@@ -3,12 +3,17 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   CutList,
   DetectParams,
+  DiagnosticInfo,
   ExportProgressEvent,
   VideoInfo,
 } from "./types";
 
 export async function openVideo(path: string): Promise<VideoInfo> {
   return invoke<VideoInfo>("open_video", { path });
+}
+
+export async function diagnosticInfo(): Promise<DiagnosticInfo> {
+  return invoke<DiagnosticInfo>("diagnostic_info");
 }
 
 export async function computeWaveform(
