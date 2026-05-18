@@ -138,6 +138,24 @@
     else startNavDrag(e, "pan");
   }
 
+  // Button-driven zoom that keeps the current center of the visible window
+  // anchored, so the user's eye doesn't jump around when they press +/-.
+  function zoomBy(factor: number) {
+    if (!duration) return;
+    const center = (viewStart + viewEnd) / 2;
+    const newSpan = Math.max(MIN_VIEW_SPAN, Math.min(duration, viewSpan * factor));
+    const [s, en] = clampWindow(center - newSpan / 2, center + newSpan / 2);
+    viewStart = s;
+    viewEnd = en;
+  }
+  function zoomIn() { zoomBy(1 / 1.6); }
+  function zoomOut() { zoomBy(1.6); }
+  function fitAll() {
+    if (!duration) return;
+    viewStart = 0;
+    viewEnd = duration;
+  }
+
   function fmt(seconds: number): string {
     const m = Math.floor(seconds / 60);
     const s = (seconds % 60).toFixed(1);
@@ -301,6 +319,28 @@
         <div class="transport">
           <button
             class="tbtn"
+            onclick={zoomOut}
+            disabled={!isZoomed && viewSpan >= duration - 0.001}
+            title="Zoom out"
+            aria-label="Zoom out"
+          >−</button>
+          <button
+            class="tbtn"
+            onclick={zoomIn}
+            disabled={viewSpan <= MIN_VIEW_SPAN + 0.001}
+            title="Zoom in"
+            aria-label="Zoom in"
+          >+</button>
+          <button
+            class="tbtn fit"
+            onclick={fitAll}
+            disabled={!isZoomed}
+            title="Fit timeline to full duration"
+          >{isZoomed ? `${(duration / viewSpan).toFixed(1)}×` : "1×"}</button>
+        </div>
+        <div class="transport">
+          <button
+            class="tbtn"
             onclick={() => editor.prevKeep()}
             disabled={!editor.cutlist}
             title="Previous cut"
@@ -332,14 +372,6 @@
         <span class="mono muted-2 time">
           {fmt(editor.currentTime)} / {fmt(duration)}
         </span>
-        {#if isZoomed}
-          <button
-            class="btn btn-ghost btn-sm"
-            onclick={() => { viewStart = 0; viewEnd = duration; }}
-          >
-            {(duration / viewSpan).toFixed(1)}× fit
-          </button>
-        {/if}
       </div>
     </header>
 
@@ -474,7 +506,12 @@
     align-items: center;
     gap: 12px;
   }
-  .head-center { justify-self: center; }
+  .head-center {
+    justify-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
   .head-right {
     display: flex;
     align-items: center;
@@ -527,6 +564,14 @@
   }
   .tbtn.play:hover:not(:disabled) {
     background: var(--border-strong);
+  }
+  .tbtn.fit {
+    width: auto;
+    min-width: 44px;
+    padding: 0 10px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   .skip-switch {

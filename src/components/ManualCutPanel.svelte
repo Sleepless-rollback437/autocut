@@ -24,6 +24,19 @@
     return () => ro.disconnect();
   });
 
+  // Whenever the timeline hover index moves to a row that's not currently
+  // visible in this panel, scroll the matching row into view. `block:
+  // "nearest"` makes this a no-op when the row is already fully on-screen,
+  // so hovering rows inside the panel doesn't cause jitter.
+  $effect(() => {
+    const idx = editor.hoveredKeepIndex;
+    if (idx === null || !listEl) return;
+    const row = listEl.querySelector(
+      `[data-keep-index="${idx}"]`,
+    ) as HTMLElement | null;
+    row?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+
   function fmt(s: number): string {
     return s.toFixed(2);
   }
@@ -94,6 +107,7 @@
           class="row"
           class:hovered={isHovered}
           class:disabled={k.disabled}
+          data-keep-index={i}
           onmouseenter={() => editor.setHoveredKeep(i)}
           onmouseleave={() => editor.setHoveredKeep(null)}
           role="presentation"
