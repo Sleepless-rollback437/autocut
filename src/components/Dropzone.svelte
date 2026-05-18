@@ -28,7 +28,7 @@
           hovering = false;
           const p = event.payload.paths[0];
           if (p && /\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(p)) {
-            editor.setVideoFile(p);
+            editor.loadVideo(p);
           }
         }
       });
@@ -47,7 +47,7 @@
         },
       ],
     });
-    if (typeof selected === "string") editor.setVideoFile(selected);
+    if (typeof selected === "string") editor.loadVideo(selected);
   }
 </script>
 

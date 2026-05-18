@@ -125,7 +125,6 @@ html, body, #app {
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-.card-flush { padding: 0; }
 .card-body { padding: 14px; }
 
 .card-head {
@@ -164,28 +163,13 @@ html, body, #app {
   background: var(--muted-2);
   vertical-align: middle;
 }
-.dot-pos {
-  background: var(--pos);
-  box-shadow: 0 0 6px hsl(142 71% 55% / 0.6);
-}
 .dot-neg {
   background: var(--neg);
   box-shadow: 0 0 6px hsl(0 84% 65% / 0.6);
 }
-.dot-accent {
-  background: var(--accent);
-  box-shadow: 0 0 6px hsl(213 94% 68% / 0.6);
-}
 .dot-disabled {
   background: var(--disabled);
   box-shadow: 0 0 6px hsl(280 70% 68% / 0.6);
-}
-.dot-pulse {
-  animation: dotPulse 1.4s ease-in-out infinite;
-}
-@keyframes dotPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
 }
 
 /* ===== Form fields ===== */

@@ -95,10 +95,6 @@ class EditorStore {
     }
   }
 
-  setVideoFile(path: string) {
-    this.loadVideo(path);
-  }
-
   requestSeek(time: number) {
     this.seekTarget = time;
     this.seekToken += 1;
@@ -346,13 +342,6 @@ class EditorStore {
     const keeps = this.keepIntervals();
     if (index < 0 || index >= keeps.length) return;
     keeps[index] = { ...keeps[index], disabled: !keeps[index].disabled };
-    this.setKeepIntervals(keeps);
-  }
-
-  deleteKeep(index: number) {
-    const keeps = this.keepIntervals();
-    if (index < 0 || index >= keeps.length) return;
-    keeps.splice(index, 1);
     this.setKeepIntervals(keeps);
   }
 

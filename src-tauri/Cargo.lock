@@ -87,7 +87,6 @@ name = "autocut"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "once_cell",
  "serde",
  "serde_json",
  "tauri",
@@ -95,7 +94,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-shell",
  "thiserror 2.0.18",
- "uuid",
  "voice_activity_detector",
 ]
 

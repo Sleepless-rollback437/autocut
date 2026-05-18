@@ -1,4 +1,3 @@
-// Module surface. Each module fills out in its dedicated unit.
 pub mod audio;
 pub mod binaries;
 pub mod commands;

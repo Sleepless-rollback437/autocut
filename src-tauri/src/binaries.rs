@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Context, Result};
 
 #[derive(Clone, Copy)]
-pub enum Tool {
+enum Tool {
     Ffmpeg,
     Ffprobe,
 }
@@ -51,7 +51,7 @@ fn ext() -> &'static str {
     if cfg!(target_os = "windows") { ".exe" } else { "" }
 }
 
-pub fn binary_path(tool: Tool, resource_dir: Option<&Path>) -> Result<PathBuf> {
+fn binary_path(tool: Tool, resource_dir: Option<&Path>) -> Result<PathBuf> {
     let leaf = tool.name();
     let suffix = ext();
     let triple = TARGET_TRIPLE;
