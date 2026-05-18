@@ -45,7 +45,15 @@ The bundle isn't notarized by Apple yet, so macOS Gatekeeper flags it as
 "damaged" until you strip the quarantine flag with that command. Brew
 does this step for you automatically — that's why it's the easier path.
 
-### Windows / Linux
+### Windows x86_64
+
+1. **[Download the latest installer](https://github.com/cobanov/autocut/releases/latest)** —
+   `autocut_X.Y.Z_x64-setup.exe` (NSIS) or `autocut_X.Y.Z_x64_en-US.msi` (MSI)
+2. Run the installer. SmartScreen warns on first launch because the
+   bundle is unsigned — click **More info → Run anyway**.
+3. Launch autocut from the Start menu
+
+### Linux
 
 Build from source for now (see the source tree). Native builds are on
 the way.
