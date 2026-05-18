@@ -47,6 +47,10 @@ export async function cancelExport(): Promise<void> {
   await invoke("cancel_export");
 }
 
+export async function revealInFinder(path: string): Promise<void> {
+  await invoke("reveal_in_finder", { path });
+}
+
 export async function exportFcpxml(
   source: string,
   output: string,

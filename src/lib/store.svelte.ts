@@ -1,4 +1,9 @@
 import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
+import {
   cancelExport as apiCancelExport,
   computeWaveform,
   detectSilence,
@@ -10,6 +15,26 @@ import {
 import type { Cut, CutList, DetectParams, VideoInfo } from "./types";
 
 type JobStatus = "idle" | "detecting" | "exporting";
+
+/// Fire-and-forget OS notification after a successful export. Falls back
+/// silently if the user denied notification permission; the in-app
+/// "Show in Finder" affordance still works.
+async function announceExport(path: string, format: "mp4" | "fcpxml") {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      granted = (await requestPermission()) === "granted";
+    }
+    if (!granted) return;
+    const filename = path.split(/[/\\]/).pop() ?? path;
+    sendNotification({
+      title: "autocut · export ready",
+      body: `${filename} (${format})`,
+    });
+  } catch {
+    /* notifications are nice-to-have; never fail the export over them */
+  }
+}
 
 const DEFAULTS: DetectParams = {
   threshold: 0.5,
@@ -32,6 +57,10 @@ class EditorStore {
   /// uniformly spaced across the full duration. Populated asynchronously
   /// after a video is loaded.
   waveform = $state<number[] | null>(null);
+  /// Surface for the "export succeeded" affordance — ExportPanel reads this
+  /// to render the success row with a Show-in-Finder button. Cleared when
+  /// the user starts a new export or closes the video.
+  lastExport = $state<{ path: string; format: "mp4" | "fcpxml" } | null>(null);
   params = $state<DetectParams>({ ...DEFAULTS });
   usePreviewRange = $state(false);
   previewRange = $state<[number, number]>([0, 0]);
@@ -198,6 +227,7 @@ class EditorStore {
     }
     const normalized = this.normalizedCutlist();
     if (!normalized) return;
+    this.lastExport = null;
     this.jobStatus = "exporting";
     this.exportProgress = { pct: 0, message: "starting" };
     this.error = null;
@@ -208,6 +238,8 @@ class EditorStore {
     try {
       await apiExportMp4(this.video.path, outputPath, normalized);
       this.exportProgress = { pct: 100, message: "done" };
+      this.lastExport = { path: outputPath, format: "mp4" };
+      announceExport(outputPath, "mp4");
     } catch (err) {
       this.error = String(err);
     } finally {
@@ -227,6 +259,7 @@ class EditorStore {
     }
     const normalized = this.normalizedCutlist();
     if (!normalized) return;
+    this.lastExport = null;
     try {
       await apiExportFcpxml(
         this.video.path,
@@ -236,6 +269,8 @@ class EditorStore {
         this.video.start_timecode,
         title,
       );
+      this.lastExport = { path: outputPath, format: "fcpxml" };
+      announceExport(outputPath, "fcpxml");
     } catch (err) {
       this.error = String(err);
     }
@@ -252,6 +287,7 @@ class EditorStore {
     this.waveform = null;
     this.error = null;
     this.exportProgress = null;
+    this.lastExport = null;
     this.hoveredKeepIndex = null;
     this.currentTime = 0;
     this.usePreviewRange = false;

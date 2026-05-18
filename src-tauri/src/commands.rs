@@ -220,6 +220,41 @@ pub struct ExportFcpxmlArgs {
     pub title: String,
 }
 
+/// Reveal a file in the OS file manager. macOS opens Finder with the file
+/// selected; Linux opens the parent folder; Windows opens Explorer with
+/// the file selected.
+#[tauri::command]
+pub fn reveal_in_finder(path: String) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    if !p.exists() {
+        return Err(format!("file does not exist: {path}"));
+    }
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.args(["-R", &path]);
+        c
+    };
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("explorer");
+        c.arg(format!("/select,{path}"));
+        c
+    };
+    #[cfg(target_os = "linux")]
+    let mut cmd = {
+        let parent = p
+            .parent()
+            .map(|x| x.to_path_buf())
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(parent);
+        c
+    };
+    cmd.spawn().map_err(fmt_err)?;
+    Ok(())
+}
+
 #[tauri::command]
 pub fn export_fcpxml(args: ExportFcpxmlArgs) -> Result<(), String> {
     let asset_path = Path::new(&args.source);

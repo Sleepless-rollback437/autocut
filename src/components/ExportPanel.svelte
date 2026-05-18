@@ -1,6 +1,11 @@
 <script lang="ts">
   import { save } from "@tauri-apps/plugin-dialog";
+  import { revealInFinder } from "../lib/api";
   import { editor } from "../lib/store.svelte";
+
+  function basename(p: string): string {
+    return p.split(/[/\\]/).pop() ?? p;
+  }
 
   function suggestedName(ext: string): string {
     if (!editor.video) return `untitled_autocut.${ext}`;
@@ -87,6 +92,30 @@
       </div>
     {/if}
 
+    {#if editor.lastExport && editor.jobStatus === "idle"}
+      <div class="exported">
+        <div class="exported-row">
+          <span class="exported-tag mono">exported</span>
+          <span class="exported-name mono" title={editor.lastExport.path}>
+            {basename(editor.lastExport.path)}
+          </span>
+        </div>
+        <div class="exported-actions">
+          <button
+            class="btn btn-sm"
+            onclick={() => revealInFinder(editor.lastExport!.path)}
+            title="Reveal file in Finder"
+          >show in finder</button>
+          <button
+            class="btn btn-ghost btn-sm"
+            onclick={() => (editor.lastExport = null)}
+            title="Dismiss"
+            aria-label="Dismiss"
+          >×</button>
+        </div>
+      </div>
+    {/if}
+
     {#if editor.error}
       <div class="error">
         <span class="dot dot-neg"></span>
@@ -143,6 +172,49 @@
   .progress .btn-danger {
     margin-top: 4px;
     justify-self: start;
+  }
+
+  .exported {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: hsl(142 71% 55% / 0.06);
+    border: 1px solid hsl(142 71% 55% / 0.3);
+    border-radius: var(--radius);
+    display: grid;
+    gap: 8px;
+  }
+  .exported-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .exported-tag {
+    font-size: 10px;
+    color: var(--pos);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+  }
+  .exported-name {
+    font-size: 12px;
+    color: var(--foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .exported-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .exported-actions .btn {
+    flex: 1;
+  }
+  .exported-actions .btn-ghost {
+    flex: 0 0 auto;
+    width: 26px;
+    padding: 0;
   }
   .error {
     margin-top: 12px;
