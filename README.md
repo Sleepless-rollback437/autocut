@@ -18,31 +18,37 @@ sliders, export an MP4 or send the timeline to DaVinci Resolve / Premiere.
 No accounts, no uploads, no Python, no ffmpeg install. Everything runs on
 your machine.
 
-## Download
-
-**[Download for macOS (Apple Silicon)](https://github.com/cobanov/autocut/releases/latest)**
-
-Grab `autocut_X.Y.Z_aarch64.dmg` from the latest release.
-
-Windows and Linux: build from source for now (see the source tree). Native
-builds are on the way.
-
 ## Install
 
-1. Open the downloaded `.dmg`
-2. Drag **autocut** into your **Applications** folder
-3. Eject the disk image
-4. Open Terminal and run this once:
+### macOS Apple Silicon — Homebrew (recommended)
+
+```sh
+brew install --cask cobanov/tap/autocut
+```
+
+Brew handles the macOS Gatekeeper quarantine flag for you, so the app
+just launches. To upgrade later: `brew upgrade --cask autocut`.
+
+### macOS Apple Silicon — manual
+
+1. **[Download the latest `.dmg`](https://github.com/cobanov/autocut/releases/latest)**
+2. Open the `.dmg`, drag **autocut** into Applications, eject the dmg
+3. Open Terminal and run this once:
 
    ```
    xattr -cr /Applications/autocut.app
    ```
 
-5. Now launch the app from Applications normally
+4. Launch the app from Applications
 
-The app isn't notarized by Apple yet, so macOS Gatekeeper flags it as
-"damaged" until you remove the quarantine flag with the command above.
-After that the app launches normally every time.
+The bundle isn't notarized by Apple yet, so macOS Gatekeeper flags it as
+"damaged" until you strip the quarantine flag with that command. Brew
+does this step for you automatically — that's why it's the easier path.
+
+### Windows / Linux
+
+Build from source for now (see the source tree). Native builds are on
+the way.
 
 ## How to use
 
