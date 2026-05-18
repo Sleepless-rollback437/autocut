@@ -56,38 +56,44 @@ fn binary_path(tool: Tool, resource_dir: Option<&Path>) -> Result<PathBuf> {
     let suffix = ext();
     let triple = TARGET_TRIPLE;
 
-    // 1. Dev: manifest_dir/binaries/<tool>-<triple><ext>
-    if let Some(dev) = dev_candidate(leaf, triple, suffix) {
-        if dev.exists() {
-            return Ok(dev);
+    // Candidates, tried in priority order. The most important one in
+    // production is the directory holding the running executable: on macOS
+    // Tauri places sidecar binaries next to the main app binary in
+    // Contents/MacOS, NOT in Contents/Resources, so app.path().resource_dir()
+    // alone misses them. We also fall back to the build-time dev path
+    // (manifest_dir/binaries) so cargo-run / cargo-test work without bundling.
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            candidates.push(parent.join(format!("{leaf}{suffix}")));
+            candidates.push(parent.join(format!("{leaf}-{triple}{suffix}")));
         }
     }
-    // 2. Production: <resource_dir>/<tool><ext> (Tauri strips the suffix at bundle time)
     if let Some(rd) = resource_dir {
-        let stripped = rd.join(format!("{leaf}{suffix}"));
-        if stripped.exists() {
-            return Ok(stripped);
-        }
-        // 3. Production fallback: tauri sometimes keeps the suffix
-        let suffixed = rd.join(format!("{leaf}-{triple}{suffix}"));
-        if suffixed.exists() {
-            return Ok(suffixed);
+        candidates.push(rd.join(format!("{leaf}{suffix}")));
+        candidates.push(rd.join(format!("{leaf}-{triple}{suffix}")));
+    }
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries")
+            .join(format!("{leaf}-{triple}{suffix}")),
+    );
+
+    for c in &candidates {
+        if c.exists() {
+            return Ok(c.clone());
         }
     }
 
+    let attempted = candidates
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
     Err(anyhow!(
-        "could not locate {leaf} binary (looked in dev manifest_dir/binaries and resource_dir)"
+        "could not locate {leaf} binary. tried: {attempted}"
     ))
-}
-
-fn dev_candidate(leaf: &str, triple: &str, suffix: &str) -> Option<PathBuf> {
-    // CARGO_MANIFEST_DIR is set at compile time. env! makes the binary tied to
-    // the build location, which is exactly what we want for dev resolution.
-    let manifest = env!("CARGO_MANIFEST_DIR");
-    let candidate = PathBuf::from(manifest)
-        .join("binaries")
-        .join(format!("{leaf}-{triple}{suffix}"));
-    Some(candidate)
 }
 
 pub fn ffmpeg_path(resource_dir: Option<&Path>) -> Result<PathBuf> {
