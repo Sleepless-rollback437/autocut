@@ -15,23 +15,6 @@
 
   let path = $derived(editor.video?.path ?? editor.pendingPath ?? null);
 
-  let statusLabel = $derived.by(() => {
-    if (editor.jobStatus === "detecting") return "detecting";
-    if (editor.jobStatus === "exporting") return "exporting";
-    if (!editor.video && editor.pendingPath) return "loading";
-    if (editor.error) return "error";
-    if (editor.cutlist) return "ready";
-    if (editor.video) return "idle";
-    return "waiting";
-  });
-  let statusDotClass = $derived.by(() => {
-    if (editor.error) return "dot dot-neg";
-    if (editor.jobStatus !== "idle") return "dot dot-accent dot-pulse";
-    if (editor.cutlist) return "dot dot-pos";
-    if (editor.video) return "dot dot-accent";
-    return "dot";
-  });
-
   // Blur the workspace while the system is busy with something the user
   // shouldn't touch yet (loading metadata, detecting). Export keeps the UI
   // crisp because it has its own progress + cancel affordance.
@@ -70,10 +53,6 @@
     {/if}
 
     <span class="topbar-spacer"></span>
-    <span class="status">
-      <span class={statusDotClass}></span>
-      <span class="mono">{statusLabel}</span>
-    </span>
     {#if editor.video || editor.pendingPath}
       <button
         class="cancel-btn"
@@ -154,19 +133,6 @@
   .topbar .filename { font-size: 13px; color: var(--foreground); }
   .topbar-spacer { flex: 1; }
 
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: lowercase;
-    letter-spacing: 0.02em;
-  }
   .cancel-btn {
     height: 26px;
     padding: 0 12px;
@@ -190,9 +156,11 @@
   .stage {
     display: grid;
     place-items: center;
-    padding: 32px;
+    padding: 32px 32px 48px;
+    overflow-y: auto;
     background:
-      radial-gradient(circle at 50% 30%, hsl(213 94% 68% / 0.04), transparent 60%),
+      radial-gradient(circle at 50% 0%, hsl(213 94% 68% / 0.05), transparent 50%),
+      radial-gradient(circle at 90% 100%, hsl(280 70% 68% / 0.03), transparent 50%),
       var(--background);
   }
 
@@ -208,13 +176,13 @@
   }
 
   .left-stack {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: 1fr auto;
     gap: 12px;
     padding: 6px;
     height: 100%;
-    overflow-y: auto;
     min-width: 0;
+    min-height: 0;
   }
   .pane-wrap {
     padding: 6px;

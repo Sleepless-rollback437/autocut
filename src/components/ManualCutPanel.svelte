@@ -5,6 +5,25 @@
   let duration = $derived(editor.video?.duration ?? 0);
   let disabledCount = $derived(keeps.filter((k) => k.disabled).length);
 
+  // Width-based responsive collapse driven by ResizeObserver. Container
+  // queries should do this for free, but Chromium webviews evaluate them
+  // against an unset width on first paint, so the layout starts broken
+  // and only corrects after a window resize. ResizeObserver fires after
+  // initial layout reliably.
+  let listEl: HTMLDivElement | null = $state(null);
+  let isNarrow = $state(false);
+
+  $effect(() => {
+    if (!listEl) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        isNarrow = entry.contentRect.width <= 240;
+      }
+    });
+    ro.observe(listEl);
+    return () => ro.disconnect();
+  });
+
   function fmt(s: number): string {
     return s.toFixed(2);
   }
@@ -58,7 +77,7 @@
     </div>
   </header>
 
-  <div class="list">
+  <div bind:this={listEl} class="list" class:narrow={isNarrow}>
     {#if keeps.length === 0}
       <div class="empty muted-2">
         <p class="empty-title">no cuts yet</p>
@@ -137,7 +156,6 @@
     overflow-y: auto;
     padding: 6px;
     min-height: 0;
-    container-type: inline-size;
   }
   .empty {
     padding: 20px 14px;
@@ -303,13 +321,12 @@
   }
 
   /* Hide the duration when the panel is narrow so the time fields stay
-     readable. Container queries keep this purely visual — no JS. */
-  @container (max-width: 240px) {
-    .row {
-      grid-template-columns: 24px 1fr 22px;
-    }
-    .dur {
-      display: none;
-    }
+     readable. Width is tracked via ResizeObserver in the script so the
+     layout is correct on first paint, not just after a resize. */
+  .list.narrow .row {
+    grid-template-columns: 24px 1fr 22px;
+  }
+  .list.narrow .dur {
+    display: none;
   }
 </style>

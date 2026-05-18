@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { editor } from "../lib/store.svelte";
 
   const MIN_VIEW_SPAN = 1.5;
@@ -32,30 +31,38 @@
     return [Math.max(0, s), Math.min(duration, s + span)];
   }
 
-  onMount(() => {
+  // Use $effect so the listener re-attaches whenever barEl swaps in. The
+  // {#if editor.video} block above means the bar div is created LATER than
+  // this component's first mount (it only renders once metadata arrives),
+  // and a plain onMount would run before that with barEl still null.
+  $effect(() => {
     const el = barEl;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (!duration) return;
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
-        const panDelta = (e.shiftKey ? e.deltaY : e.deltaX) * (viewSpan / 600);
+      // Use whichever axis has more motion. Trackpad sideways swipes report
+      // on deltaX; mouse wheels report on deltaY. Either should move things.
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
+
+      const canPan = viewSpan < duration - 0.001;
+      if (canPan) {
+        // Zoomed in: pan the visible window.
+        const panDelta = delta * (viewSpan / 600);
         const [s, en] = clampWindow(viewStart + panDelta, viewEnd + panDelta);
         viewStart = s;
         viewEnd = en;
-        e.preventDefault();
-        return;
+      } else {
+        // Fully zoomed out: there's nothing to pan past, so scroll seeks the
+        // playhead instead. Keeps the gesture from feeling broken at default
+        // zoom.
+        const seekDelta = delta * (duration / 600);
+        const next = Math.max(
+          0,
+          Math.min(duration, editor.currentTime + seekDelta),
+        );
+        editor.requestSeek(next);
       }
-      const rect = el.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / rect.width;
-      const cursorTime = viewStart + x * viewSpan;
-      const factor = e.deltaY > 0 ? 1.25 : 0.8;
-      const newSpan = Math.max(MIN_VIEW_SPAN, Math.min(duration, viewSpan * factor));
-      const [s, en] = clampWindow(
-        cursorTime - x * newSpan,
-        cursorTime + (1 - x) * newSpan,
-      );
-      viewStart = s;
-      viewEnd = en;
       e.preventDefault();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -267,29 +274,26 @@
 {#if editor.video}
   <section class="card timeline-card">
     <header class="card-head">
-      <div>
+      <div class="head-left">
         <h2>timeline</h2>
         <p class="card-sub">
           {#if editor.cutlist}
-            <span class="mono">
-              <span class="dot dot-pos"></span> kept {fmt(keptDuration)}
-            </span>
+            <span class="mono">kept {fmt(keptDuration)}</span>
             <span class="muted-2">·</span>
-            <span class="mono">
-              <span class="dot dot-neg"></span> removed {fmt(removedDuration)}
-            </span>
+            <span class="mono">removed {fmt(removedDuration)}</span>
           {:else}
-            scroll to zoom · drag window below to pan · detect to populate
+            scroll to pan · drag window below to zoom · detect to populate
           {/if}
         </p>
       </div>
-      <div class="card-head-actions">
+
+      <div class="head-center">
         <div class="transport">
           <button
             class="tbtn"
             onclick={() => editor.prevKeep()}
             disabled={!editor.cutlist}
-            title="Previous cut (jump to start of previous keep)"
+            title="Previous cut"
             aria-label="Previous cut"
           >⏮</button>
           <button
@@ -303,16 +307,18 @@
             class="tbtn"
             onclick={() => editor.nextKeep()}
             disabled={!editor.cutlist}
-            title="Next cut (jump to start of next keep)"
+            title="Next cut"
             aria-label="Next cut"
           >⏭</button>
         </div>
+      </div>
 
-        <label class="skip-switch">
+      <div class="head-right">
+        <label class="skip-switch" title="Toggle skipping removed segments during playback">
           <input type="checkbox" bind:checked={editor.skipRemoved} />
           <span class="mono">{editor.skipRemoved ? "skipping cuts" : "playing all"}</span>
         </label>
-
+        <span class="vsep" aria-hidden="true"></span>
         <span class="mono muted-2 time">
           {fmt(editor.currentTime)} / {fmt(duration)}
         </span>
@@ -439,6 +445,40 @@
 {/if}
 
 <style>
+  /* Fill the entire bottom pane so the timeline never leaves dead space
+     below itself. The bar grows to absorb extra height so the waveform
+     visually scales with the pane (taller pane = bigger waveform). */
+  .timeline-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Three-zone header: title-left, transport-center, controls-right.
+     Overrides the global card-head's flex with a grid so the transport
+     stays optically centered regardless of left/right content widths. */
+  .card-head {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+  .head-center { justify-self: center; }
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    justify-self: end;
+    flex-wrap: wrap;
+  }
+  .vsep {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    display: inline-block;
+  }
+
   .time { font-size: 11px; }
 
   .transport {
@@ -446,18 +486,18 @@
     align-items: stretch;
     gap: 0;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface-2);
   }
   .tbtn {
-    width: 28px;
-    height: 26px;
+    width: 36px;
+    height: 30px;
     background: transparent;
     border: 0;
     color: var(--muted);
     cursor: pointer;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1;
     padding: 0;
     transition: background 120ms, color 120ms;
@@ -469,7 +509,15 @@
     color: var(--foreground);
   }
   .tbtn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .tbtn.play { font-size: 12px; color: var(--foreground); }
+  .tbtn.play {
+    width: 44px;
+    font-size: 14px;
+    color: var(--foreground);
+    background: var(--elevated);
+  }
+  .tbtn.play:hover:not(:disabled) {
+    background: var(--border-strong);
+  }
 
   .skip-switch {
     display: inline-flex;
@@ -532,12 +580,16 @@
   .tl-body {
     padding: 12px 14px 14px;
     display: grid;
+    grid-template-rows: minmax(56px, 1fr) auto;
     gap: 8px;
+    flex: 1;
+    min-height: 0;
   }
   .bar {
     position: relative;
     width: 100%;
-    height: 56px;
+    height: 100%;
+    min-height: 56px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -720,5 +772,4 @@
   .nav-handle.left { left: 0; cursor: ew-resize; border-radius: 2px 0 0 2px; }
   .nav-handle.right { right: 0; cursor: ew-resize; border-radius: 0 2px 2px 0; }
 
-  .card-sub .dot { margin-right: 4px; }
 </style>
