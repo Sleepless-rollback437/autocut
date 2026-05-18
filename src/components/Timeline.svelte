@@ -13,10 +13,20 @@
 
   let duration = $derived(editor.video?.duration ?? 0);
 
+  // Pick a sensible default visible window on first load so long videos
+  // don't open at maximum zoom-out (where individual cuts are 1px wide and
+  // people who haven't found the navigator never zoom in). Short clips
+  // (<= 90s) still open fully; longer clips show ~duration/5 capped at 4
+  // minutes so the first 60-240 seconds are immediately legible.
+  function defaultViewSpan(d: number): number {
+    if (d <= 90) return d;
+    return Math.min(d, Math.max(60, Math.min(240, d / 5)));
+  }
+
   $effect(() => {
     if (editor.video) {
       viewStart = 0;
-      viewEnd = editor.video.duration;
+      viewEnd = defaultViewSpan(editor.video.duration);
     }
   });
 
