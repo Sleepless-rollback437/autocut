@@ -117,7 +117,12 @@ class EditorStore {
 
   private async fetchWaveform(path: string) {
     try {
-      const bins = 2000;
+      // Scale bin count with duration so very long clips still have enough
+      // detail when zoomed in 50x-100x via the navigator. A flat 2000-bin
+      // overview looks fine for a 30-second clip but goes blocky on hour-
+      // long footage. ~10 bins/sec, capped so memory doesn't run away.
+      const duration = this.video?.duration ?? 60;
+      const bins = Math.min(50000, Math.max(2000, Math.ceil(duration * 10)));
       const w = await computeWaveform(path, bins);
       // Guard against races: if the user already loaded a different video
       // while waveform extraction was running, drop the result.
