@@ -75,6 +75,11 @@ class EditorStore {
       // Waveform extraction is fire-and-forget — the player works without it.
       this.fetchWaveform(path);
     } catch (err) {
+      // Reset BOTH video and pendingPath so the dropzone screen comes back,
+      // but keep `error` set — Dropzone reads it and surfaces it. Otherwise
+      // a failure in ffprobe (e.g. macOS Gatekeeper blocking the sidecar
+      // binary, or an unreadable file) shows nothing and looks like the app
+      // ate the drop.
       this.error = String(err);
       this.video = null;
       this.pendingPath = null;

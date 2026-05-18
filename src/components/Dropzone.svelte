@@ -27,8 +27,11 @@
         } else if (event.payload.type === "drop") {
           hovering = false;
           const p = event.payload.paths[0];
-          if (p && /\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(p)) {
+          if (!p) return;
+          if (/\.(mp4|mov|m4v|mkv|webm|avi)$/i.test(p)) {
             editor.loadVideo(p);
+          } else {
+            editor.error = `unsupported file format: ${p.split(/[/\\]/).pop()}`;
           }
         }
       });
@@ -88,6 +91,21 @@
       <span class="sep">·</span>
       <span class="mono">avi</span>
     </div>
+
+    {#if editor.error}
+      <div class="error">
+        <div class="error-head mono">couldn't open that video</div>
+        <div class="error-body mono">{editor.error}</div>
+        {#if /gatekeeper|denied|not permitted|operation not permitted|killed/i.test(editor.error)}
+          <div class="error-hint">
+            macOS is blocking the bundled ffmpeg helper. open Terminal and
+            run once:
+            <code>xattr -cr /Applications/autocut.app</code>
+            then relaunch the app.
+          </div>
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <footer class="meta mono muted-2">
@@ -190,6 +208,50 @@
     letter-spacing: 0.04em;
   }
   .formats .sep { color: var(--border-strong); }
+
+  .error {
+    margin-top: 16px;
+    max-width: 480px;
+    padding: 12px 14px;
+    background: hsl(0 84% 65% / 0.07);
+    border: 1px solid hsl(0 84% 65% / 0.35);
+    border-radius: var(--radius);
+    text-align: left;
+    display: grid;
+    gap: 6px;
+  }
+  .error-head {
+    color: var(--neg);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .error-body {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .error-hint {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid hsl(0 84% 65% / 0.2);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .error-hint code {
+    display: block;
+    margin-top: 6px;
+    padding: 6px 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--foreground);
+    user-select: all;
+  }
 
   /* ===== meta footer ===== */
   .meta {
