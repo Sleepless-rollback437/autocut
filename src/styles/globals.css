@@ -1,0 +1,367 @@
+/* autocut visual system. Ported from personal-tracking/DESIGN.md
+   (shadcn-zinc dark + Geist) and trimmed to what this app actually uses. */
+
+:root {
+  --background:    hsl(240 10% 3.9%);
+  --surface:       hsl(240 6% 6%);
+  --surface-2:     hsl(240 5% 9%);
+  --elevated:      hsl(240 4% 11%);
+  --border:        hsl(240 4% 16%);
+  --border-strong: hsl(240 4% 22%);
+  --input:         hsl(240 4% 11%);
+  --ring:          hsl(0 0% 90%);
+
+  --foreground:    hsl(0 0% 98%);
+  --muted:         hsl(240 5% 65%);
+  --muted-2:       hsl(240 4% 46%);
+
+  --primary:       hsl(0 0% 98%);
+  --primary-fg:    hsl(240 6% 10%);
+
+  --pos:           hsl(142 71% 55%);
+  --neg:           hsl(0 84% 65%);
+  --accent:        hsl(213 94% 68%);
+  --disabled:      hsl(280 70% 68%);
+
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 8px;
+
+  --font-sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  font-feature-settings: "ss01", "cv11";
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+}
+
+.muted { color: var(--muted); }
+.muted-2 { color: var(--muted-2); }
+
+/* ===== Buttons ===== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--foreground);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+  user-select: none;
+}
+.btn:hover:not(:disabled) {
+  background: var(--elevated);
+  border-color: var(--border-strong);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: hsl(0 0% 92%);
+  border-color: hsl(0 0% 92%);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--neg);
+  border-color: var(--border);
+}
+.btn-danger:hover:not(:disabled) {
+  background: hsl(0 84% 65% / 0.08);
+  border-color: var(--neg);
+}
+
+.btn-block { width: 100%; }
+.btn-sm { height: 26px; padding: 0 10px; font-size: 12px; border-radius: var(--radius-sm); }
+.btn-lg { height: 38px; padding: 0 16px; font-size: 14px; }
+
+/* ===== Cards ===== */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.card-flush { padding: 0; }
+.card-body { padding: 14px; }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.card-head h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card-head .card-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+.card-head-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ===== Status dot ===== */
+
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted-2);
+  vertical-align: middle;
+}
+.dot-pos {
+  background: var(--pos);
+  box-shadow: 0 0 6px hsl(142 71% 55% / 0.6);
+}
+.dot-neg {
+  background: var(--neg);
+  box-shadow: 0 0 6px hsl(0 84% 65% / 0.6);
+}
+.dot-accent {
+  background: var(--accent);
+  box-shadow: 0 0 6px hsl(213 94% 68% / 0.6);
+}
+.dot-disabled {
+  background: var(--disabled);
+  box-shadow: 0 0 6px hsl(280 70% 68% / 0.6);
+}
+.dot-pulse {
+  animation: dotPulse 1.4s ease-in-out infinite;
+}
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ===== Form fields ===== */
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.field-label .val {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 18px;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--input);
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--foreground);
+  margin-top: -6px;
+  border: 1px solid var(--foreground);
+  cursor: grab;
+  box-shadow: 0 1px 2px hsl(0 0% 0% / 0.5);
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="number"], input[type="text"], select {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+  transition: border-color 120ms;
+}
+input[type="number"]:focus, input[type="text"]:focus, select:focus {
+  border-color: var(--border-strong);
+}
+
+/* ===== Toggle (checkbox styled) ===== */
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 30px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--input);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 120ms;
+}
+.toggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 120ms, background 120ms;
+}
+.toggle input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.toggle input[type="checkbox"]:checked::after {
+  transform: translateX(13px);
+  background: var(--primary);
+}
+
+/* ===== Topbar ===== */
+
+.topbar {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+.topbar .brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px hsl(213 94% 68% / 0.7);
+}
+
+.chip-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.chip-row .chip-label {
+  color: var(--muted-2);
+  margin-right: 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.chip-row .sep {
+  color: var(--border-strong);
+}
+
+/* ===== Scrollbars ===== */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid var(--background);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-2); }
+
+/* ===== Misc ===== */
+
+::selection { background: hsl(213 94% 68% / 0.3); }

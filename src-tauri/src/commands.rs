@@ -1,0 +1,200 @@
+//! Tauri command surface. Frontend talks to these via `invoke()`.
+//!
+//! Long-running operations (`detect_silence`, `export_mp4`) run on a worker
+//! thread and emit progress events via the Tauri Emitter API. Frontend
+//! subscribes via `listen('export-progress', ...)` etc.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter, Manager, State};
+
+use crate::audio::extract_pcm;
+use crate::binaries::{ffmpeg_path, ffprobe_path};
+use crate::cutlist::CutList;
+use crate::export_fcpxml::{render as render_fcpxml, FcpxmlParams};
+use crate::export_mp4;
+use crate::probe::{probe, VideoInfo};
+use crate::vad::{detect as detect_vad, VadParams};
+use crate::waveform::extract_waveform;
+
+#[derive(Default)]
+pub struct AppState {
+    /// Single-job cancellation flag. Set by `cancel_export`, polled by the
+    /// export worker. We only support one concurrent export.
+    pub export_cancel: Mutex<Option<Arc<AtomicBool>>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DetectParams {
+    pub threshold: f32,
+    pub min_silence_ms: u32,
+    pub min_speech_ms: u32,
+    pub pad: f64,
+    pub preview_range: Option<(f64, f64)>,
+}
+
+impl From<&DetectParams> for VadParams {
+    fn from(p: &DetectParams) -> Self {
+        VadParams {
+            threshold: p.threshold,
+            min_silence_ms: p.min_silence_ms,
+            min_speech_ms: p.min_speech_ms,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct DetectResult {
+    pub cutlist: CutList,
+}
+
+fn resource_dir(app: &AppHandle) -> Option<PathBuf> {
+    app.path().resource_dir().ok()
+}
+
+#[tauri::command]
+pub async fn compute_waveform(
+    app: AppHandle,
+    path: String,
+    target_bins: usize,
+) -> Result<Vec<f32>, String> {
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let video = PathBuf::from(&path);
+    tauri::async_runtime::spawn_blocking(move || extract_waveform(&ffmpeg, &video, target_bins))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn open_video(app: AppHandle, path: String) -> Result<VideoInfo, String> {
+    let ffprobe = ffprobe_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let video = PathBuf::from(&path);
+    tauri::async_runtime::spawn_blocking(move || probe(&ffprobe, &video))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn detect_silence(
+    app: AppHandle,
+    path: String,
+    duration: f64,
+    params: DetectParams,
+) -> Result<DetectResult, String> {
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let video = PathBuf::from(&path);
+    let range = params.preview_range;
+    let pad = params.pad;
+    let vad_params: VadParams = (&params).into();
+    let offset = range.map(|(s, _)| s).unwrap_or(0.0);
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<DetectResult, String> {
+        let samples = extract_pcm(&ffmpeg, &video, range).map_err(|e| e.to_string())?;
+        let segments = detect_vad(&samples, vad_params, offset).map_err(|e| e.to_string())?;
+        let cutlist = CutList::from_speech_segments(&segments, duration, pad);
+        Ok(DetectResult { cutlist })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportMp4Args {
+    pub source: String,
+    pub output: String,
+    pub cutlist: CutList,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ExportProgressEvent {
+    pct: f32,
+    message: String,
+}
+
+#[tauri::command]
+pub async fn export_mp4(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    args: ExportMp4Args,
+) -> Result<(), String> {
+    let ffmpeg = ffmpeg_path(resource_dir(&app).as_deref()).map_err(|e| e.to_string())?;
+    let source = PathBuf::from(&args.source);
+    let output = PathBuf::from(&args.output);
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    {
+        let mut guard = state.export_cancel.lock().unwrap();
+        *guard = Some(cancel.clone());
+    }
+
+    let app_for_progress = app.clone();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+    let cancel_for_worker = cancel.clone();
+    thread::spawn(move || {
+        let on_progress = move |p: export_mp4::ExportProgress| {
+            let _ = app_for_progress.emit(
+                "export-progress",
+                ExportProgressEvent { pct: p.pct, message: p.message },
+            );
+        };
+        let res = export_mp4::export(
+            &ffmpeg,
+            &source,
+            &output,
+            &args.cutlist,
+            cancel_for_worker,
+            on_progress,
+        );
+        let _ = tx.send(res.map_err(|e| e.to_string()));
+    });
+
+    let result = tauri::async_runtime::spawn_blocking(move || rx.recv().unwrap_or_else(|e| Err(e.to_string())))
+        .await
+        .map_err(|e| e.to_string())?;
+
+    {
+        let mut guard = state.export_cancel.lock().unwrap();
+        *guard = None;
+    }
+    result
+}
+
+#[tauri::command]
+pub fn cancel_export(state: State<'_, AppState>) -> Result<(), String> {
+    if let Some(flag) = state.export_cancel.lock().unwrap().clone() {
+        flag.store(true, Ordering::SeqCst);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExportFcpxmlArgs {
+    pub source: String,
+    pub output: String,
+    pub cutlist: CutList,
+    pub fps: f64,
+    pub start_timecode: Option<String>,
+    pub title: String,
+}
+
+#[tauri::command]
+pub fn export_fcpxml(args: ExportFcpxmlArgs) -> Result<(), String> {
+    let asset_path = Path::new(&args.source);
+    let xml = render_fcpxml(
+        &args.cutlist,
+        FcpxmlParams {
+            fps: args.fps,
+            asset_path: Some(asset_path),
+            start_timecode: args.start_timecode.as_deref(),
+            title: &args.title,
+        },
+    );
+    std::fs::write(&args.output, xml).map_err(|e| e.to_string())?;
+    Ok(())
+}

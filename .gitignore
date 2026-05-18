@@ -1,0 +1,29 @@
+# Rust / Tauri
+target/
+**/target/
+Cargo.lock.bak
+
+# Bundled binaries (downloaded by build.rs on first build)
+src-tauri/binaries/
+
+# Node
+node_modules/
+dist/
+.svelte-kit/
+build/
+
+# Vite
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Tauri
+src-tauri/gen/
+src-tauri/WixTools/
+
+# Claude Code workspace
+.claude/

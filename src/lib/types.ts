@@ -1,0 +1,40 @@
+// Mirrors the Rust types in src-tauri/src. Keep in sync.
+
+export type VideoInfo = {
+  path: string;
+  duration: number;
+  fps: number;
+  width: number;
+  height: number;
+  start_timecode: string | null;
+};
+
+export type CutKind = "keep" | "remove";
+
+export type Cut = {
+  start: number;
+  end: number;
+  kind: CutKind;
+  /// Frontend-only flag. A disabled `keep` still appears in the UI but the
+  /// store collapses it into a `remove` before sending to the Rust exporter.
+  /// Rust never sees this field.
+  disabled?: boolean;
+};
+
+export type CutList = {
+  source_duration: number;
+  intervals: Cut[];
+};
+
+export type DetectParams = {
+  threshold: number;
+  min_silence_ms: number;
+  min_speech_ms: number;
+  pad: number;
+  preview_range: [number, number] | null;
+};
+
+export type ExportProgressEvent = {
+  pct: number;
+  message: string;
+};

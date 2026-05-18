@@ -1,0 +1,71 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type {
+  CutList,
+  DetectParams,
+  ExportProgressEvent,
+  VideoInfo,
+} from "./types";
+
+export async function openVideo(path: string): Promise<VideoInfo> {
+  return invoke<VideoInfo>("open_video", { path });
+}
+
+export async function computeWaveform(
+  path: string,
+  targetBins: number,
+): Promise<number[]> {
+  return invoke<number[]>("compute_waveform", { path, targetBins });
+}
+
+export async function detectSilence(
+  path: string,
+  duration: number,
+  params: DetectParams,
+): Promise<{ cutlist: CutList }> {
+  return invoke<{ cutlist: CutList }>("detect_silence", {
+    path,
+    duration,
+    params,
+  });
+}
+
+export async function exportMp4(
+  source: string,
+  output: string,
+  cutlist: CutList,
+): Promise<void> {
+  await invoke("export_mp4", { args: { source, output, cutlist } });
+}
+
+export async function cancelExport(): Promise<void> {
+  await invoke("cancel_export");
+}
+
+export async function exportFcpxml(
+  source: string,
+  output: string,
+  cutlist: CutList,
+  fps: number,
+  startTimecode: string | null,
+  title: string,
+): Promise<void> {
+  await invoke("export_fcpxml", {
+    args: {
+      source,
+      output,
+      cutlist,
+      fps,
+      start_timecode: startTimecode,
+      title,
+    },
+  });
+}
+
+export function onExportProgress(
+  handler: (e: ExportProgressEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<ExportProgressEvent>("export-progress", (event) => {
+    handler(event.payload);
+  });
+}
