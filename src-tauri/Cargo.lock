@@ -225,7 +225,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-notification",
  "tauri-plugin-shell",
- "thiserror 2.0.18",
  "voice_activity_detector",
 ]
 
