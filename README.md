@@ -31,16 +31,18 @@ builds are on the way.
 
 1. Open the downloaded `.dmg`
 2. Drag **autocut** into your **Applications** folder
-3. First launch: right-click the app and choose **Open**, then click
-   **Open** in the warning dialog
+3. Eject the disk image
+4. Open Terminal and run this once:
 
-The app isn't notarized by Apple yet, so macOS Gatekeeper warns the first
-time. If the right-click trick doesn't let you through, open Terminal and
-run:
+   ```
+   xattr -cr /Applications/autocut.app
+   ```
 
-```
-xattr -d com.apple.quarantine /Applications/autocut.app
-```
+5. Now launch the app from Applications normally
+
+The app isn't notarized by Apple yet, so macOS Gatekeeper flags it as
+"damaged" until you remove the quarantine flag with the command above.
+After that the app launches normally every time.
 
 ## How to use
 
