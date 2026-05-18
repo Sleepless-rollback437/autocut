@@ -1,117 +1,80 @@
 # autocut
 
-A small desktop app for removing silent gaps from videos. Drop a video in,
-tweak a few sliders, refine the cuts, then export an MP4 or an FCPXML for
-DaVinci Resolve / Premiere Pro.
-
-Built with Rust (Tauri 2) + Svelte 5. Cross-platform: macOS, Linux, Windows.
+Remove silent gaps from videos in seconds. Drop a video, tweak a couple of
+sliders, export an MP4 or send the timeline to DaVinci Resolve / Premiere.
 
 ![autocut screenshot](docs/screenshot.jpeg)
 
 ## What it does
 
-- Drag-and-drop a video file (or pick one) - preview opens instantly
-- Detect speech with silero-vad (bundled ONNX, no Python)
-- Two-tier timeline with audio waveform: zoomable detail bar over a navigator
-- Live-tune `threshold`, `pad`, `min silence`, `min speech` (debounced rerun)
-- Manual cut editing: drag the green edge handles on the timeline, edit
-  in/out timestamps in the cuts panel, or toggle cuts off temporarily
-  (purple) without losing them until export
-- Bidirectional hover sync between the timeline and the cuts list
-- Preview window: process only `[t_start, t_end]` while iterating on a long
-  video, then export the full thing
-- Playback skips removed segments automatically (toggleable). Spacebar
-  play/pause, transport buttons jump between cuts
-- Resizable workspace with persistent split positions
-- Export:
-  - **MP4** via ffmpeg `filter_complex select` (libx264 + aac, re-encode)
-  - **FCPXML 1.11** with source-timecode alignment so DaVinci/Premiere will
-    auto-link the clip (no "media offline" relink dialog)
+- Finds the spoken parts of your video automatically
+- Lets you preview the cut version before exporting
+- Lets you fine-tune individual cuts (drag the edges on the timeline, or
+  edit in/out timestamps in the cuts panel)
+- Exports a ready-to-share **MP4** with the silence removed
+- Or exports an **FCPXML** that DaVinci Resolve and Adobe Premiere import
+  as a clean timeline, source timecode preserved
 
-## Quick start (dev)
+No accounts, no uploads, no Python, no ffmpeg install. Everything runs on
+your machine.
 
-Requirements: Rust 1.77+, Node 20+, pnpm. `curl`, `tar`, and `unzip` for the
-first build (used by `build.rs` to fetch ffmpeg).
+## Download
 
-```sh
-pnpm install
-pnpm tauri dev
-```
+**[Download for macOS (Apple Silicon)](https://github.com/cobanov/autocut/releases/latest)**
 
-The first build downloads ffmpeg + ffprobe (~150 MB combined) into
-`src-tauri/binaries/`. Set `AUTOCUT_SKIP_FFMPEG_DOWNLOAD=1` to skip (e.g. for
-offline cargo check; the bundle phase will then fail loudly).
+Grab `autocut_X.Y.Z_aarch64.dmg` from the latest release.
 
-## Production build
+Windows and Linux: build from source for now (see the source tree). Native
+builds are on the way.
 
-```sh
-pnpm tauri build
-```
+## Install
 
-Output sits under `src-tauri/target/release/bundle/`:
-- macOS: `.app` and `.dmg`
-- Linux: `.AppImage` and `.deb`
-- Windows: `.msi` and `.exe`
+1. Open the downloaded `.dmg`
+2. Drag **autocut** into your **Applications** folder
+3. First launch: right-click the app and choose **Open**, then click
+   **Open** in the warning dialog
 
-## Layout
+The app isn't notarized by Apple yet, so macOS Gatekeeper warns the first
+time. If the right-click trick doesn't let you through, open Terminal and
+run:
 
 ```
-src-tauri/                  Rust + Tauri backend
-  build.rs                  Downloads ffmpeg/ffprobe at build time
-  binaries/                 ffmpeg-<triple>, ffprobe-<triple> (gitignored)
-  src/
-    cutlist.rs              Cut, CutList, pad-and-merge inversion
-    timecode.rs             SMPTE parse, drop-frame, FCPXML rational render
-    probe.rs                ffprobe wrapper (duration, fps, source TC)
-    audio.rs                ffmpeg -> 16kHz f32 PCM in memory
-    vad.rs                  silero-vad wrapper, hysteresis, segment grouping
-    waveform.rs             Downsampled amplitude envelope
-    export_fcpxml.rs        FCPXML 1.11 emitter
-    export_mp4.rs           ffmpeg filter_complex select + progress
-    commands.rs             Tauri command surface
-    binaries.rs             Sidecar path resolver (dev vs bundled)
-
-src/                        Svelte 5 frontend
-  App.svelte                Topbar + resizable workspace
-  components/
-    Dropzone.svelte         Empty-state hero with drag/drop target
-    VideoPlayer.svelte      <video> + skip-removed playback, space toggle
-    Timeline.svelte         Waveform, two-tier zoom, edge-drag cuts
-    ManualCutPanel.svelte   Inline-editable keep intervals
-    ParameterPanel.svelte   Custom Slider component, debounced auto-rerun
-    ExportPanel.svelte
-    Slider.svelte           Custom horizontal slider with shift-fine, kbd
-    ResizableSplit.svelte   Reusable horizontal/vertical split with persist
-  lib/
-    api.ts                  invoke() wrappers
-    store.svelte.ts         Runes-based editor store
-    types.ts                Mirrors Rust types
+xattr -d com.apple.quarantine /Applications/autocut.app
 ```
 
-## Notes
+## How to use
 
-- The FCPXML exporter intentionally hand-writes XML rather than using
-  opentimelineio. Resolve binds an asset to its source media via THREE checks
-  (path, embedded source TC, frame-rate format). If the MP4 carries
-  `15:33:27;24` but the FCPXML says the asset starts at `0s`, the relink
-  dialog fires even when the path is correct. We carry the source TC through.
-- silero VAD runs with hysteresis (start at `threshold`, continue while
-  above `threshold - 0.15`). Without it, marginal-probability frames in the
-  middle of an utterance flicker on/off and produce false silences.
-- Lossless smart-cut is deferred. The MP4 path re-encodes; for serious editing
-  use the FCPXML hand-off.
-- Single concurrent export. Cancellation kills the ffmpeg child process.
+1. **Drop a video** onto the window (or click *browse files*). MP4, MOV,
+   MKV, WebM and AVI all work.
+2. **Click *detect silences*** in the panel on the left. autocut analyzes
+   the audio and marks the spoken regions green, the silent regions red.
+3. **Watch the preview**. Hit space to play / pause. The player skips the
+   removed parts automatically so you hear the final cut as you go.
+4. **Refine if you want**:
+   - Drag the green edge handles on the timeline to nudge a cut
+   - Edit the exact in / out times in the **cuts** panel on the right
+   - Click the × on a row to *disable* that keep (it turns purple, gets
+     excluded from the export, but you can bring it back with one click)
+   - Adjust the sliders (threshold, pad, min silence, min speech) to
+     change how aggressive the detection is. Hold **shift** for fine steps.
+5. **Export**:
+   - **MP4** for a finished video file you can share immediately
+   - **FCPXML** to import into DaVinci or Premiere with the exact cuts
+     already on the timeline
 
-## Testing
+That's it.
 
-```sh
-cargo test --manifest-path src-tauri/Cargo.toml
-pnpm check
-```
+## Tips
 
-There's also a CLI smoke harness for the end-to-end pipeline:
+- Got a long video? Turn on *preview range only* in the parameters panel
+  so detection runs on a short slice while you tune the sliders. The full
+  video gets processed when you hit export.
+- DaVinci Resolve users: the FCPXML keeps your source timecode, so the
+  clip auto-links to the original media file without a "media offline"
+  dialog.
+- Scroll on the timeline pans it left/right. Drag the small window in the
+  navigator below to zoom into a specific section.
 
-```sh
-cargo run --manifest-path src-tauri/Cargo.toml --bin smoke --release -- \
-  /path/to/video.mp4
-```
+## Built by
+
+[mert cobanov](https://cobanov.dev) · 2026
