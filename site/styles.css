@@ -113,7 +113,6 @@ a:hover { color: var(--accent); }
 .hero {
   width: 100%;
   max-width: 920px;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -184,10 +183,14 @@ a:hover { color: var(--accent); }
   font-weight: 600;
 }
 
-/* ─── Framed screenshot — the only flex-grow child ────────────────────── */
+/* ─── Framed screenshot ────────────────────────────────────────────────
+   Image keeps its natural aspect ratio so there's no letterboxing
+   inside the brackets. A vh-based max-height keeps it from blowing
+   up on tall windows; the hero cluster stays compact and the brew
+   line sits right under the actions instead of drifting to the
+   bottom of the page. */
 .frame {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 0 1 auto;
   position: relative;
   margin: 0;
   padding: 12px;
@@ -197,16 +200,18 @@ a:hover { color: var(--accent); }
   gap: 6px;
 }
 .frame img {
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  max-width: 100%;
-  height: 100%;
-  object-fit: contain;
+  /* Width is bounded by both the frame max and by what the available
+     vertical space allows at this aspect ratio. Then height = width /
+     aspect-ratio. Net effect: image fills the bracketed area exactly,
+     no letterboxing, scales gracefully with viewport. */
+  width: min(100%, calc(56vh * 2784 / 1824));
+  height: auto;
+  aspect-ratio: 2784 / 1824;
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   display: block;
+  margin: 0 auto;
 }
 
 .bracket {
