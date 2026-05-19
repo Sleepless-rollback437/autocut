@@ -159,15 +159,14 @@ fn parse_checksum_output(output: &str) -> Result<String, String> {
 
 #[cfg(windows)]
 fn sha256_file(path: &Path) -> Result<String, String> {
-    let out = command_output(
-        Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "(Get-FileHash -Algorithm SHA256 -LiteralPath $args[0]).Hash.ToLowerInvariant()",
-            ])
-            .arg(path),
-    )?;
+    // PowerShell's `-Command` mode does not bind trailing positional args to
+    // `$args`, so the path has to be embedded in the script. Single-quote it
+    // and escape any embedded single quotes by doubling them.
+    let escaped = path.display().to_string().replace('\'', "''");
+    let script = format!(
+        "(Get-FileHash -Algorithm SHA256 -LiteralPath '{escaped}').Hash.ToLowerInvariant()"
+    );
+    let out = command_output(Command::new("powershell").args(["-NoProfile", "-Command", &script]))?;
     parse_checksum_output(&out)
 }
 
