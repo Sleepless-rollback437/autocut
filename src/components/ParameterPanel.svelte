@@ -83,45 +83,6 @@
         hold <span class="kbd">shift</span> for fine adjustment
       </p>
     </div>
-
-    <div class="divider"></div>
-
-    <label class="toggle">
-      <input
-        type="checkbox"
-        bind:checked={editor.usePreviewRange}
-        oninput={bump}
-      />
-      <span>preview range only</span>
-    </label>
-
-    {#if editor.usePreviewRange && editor.video}
-      <div class="range-grid">
-        <div class="field">
-          <div class="field-label"><span>start</span></div>
-          <input
-            type="number"
-            min="0"
-            max={editor.video.duration}
-            step="0.1"
-            bind:value={editor.previewRange[0]}
-            oninput={bump}
-          />
-        </div>
-        <div class="field">
-          <div class="field-label"><span>end</span></div>
-          <input
-            type="number"
-            min="0"
-            max={editor.video.duration}
-            step="0.1"
-            bind:value={editor.previewRange[1]}
-            oninput={bump}
-          />
-        </div>
-      </div>
-    {/if}
-
   </div>
 </section>
 
@@ -165,15 +126,5 @@
     font-size: 9px;
     line-height: 14px;
     margin: 0 1px;
-  }
-  .divider {
-    border-top: 1px solid var(--border);
-    margin: 14px 0;
-  }
-  .range-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin: 10px 0;
   }
 </style>

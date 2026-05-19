@@ -142,10 +142,58 @@ pub async fn detect_silence(
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportQuality {
+    High,
+    Medium,
+    Small,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportResolution {
+    Source,
+    #[serde(rename = "1080p")]
+    P1080,
+    #[serde(rename = "720p")]
+    P720,
+    #[serde(rename = "480p")]
+    P480,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ExportMp4Args {
     pub source: String,
     pub output: String,
     pub cutlist: CutList,
+    #[serde(default = "default_quality")]
+    pub quality: ExportQuality,
+    #[serde(default = "default_resolution")]
+    pub resolution: ExportResolution,
+}
+
+fn default_quality() -> ExportQuality { ExportQuality::Medium }
+fn default_resolution() -> ExportResolution { ExportResolution::Source }
+
+impl From<ExportQuality> for export_mp4::Quality {
+    fn from(q: ExportQuality) -> Self {
+        match q {
+            ExportQuality::High => export_mp4::Quality::High,
+            ExportQuality::Medium => export_mp4::Quality::Medium,
+            ExportQuality::Small => export_mp4::Quality::Small,
+        }
+    }
+}
+
+impl From<ExportResolution> for export_mp4::Resolution {
+    fn from(r: ExportResolution) -> Self {
+        match r {
+            ExportResolution::Source => export_mp4::Resolution::Source,
+            ExportResolution::P1080 => export_mp4::Resolution::P1080,
+            ExportResolution::P720 => export_mp4::Resolution::P720,
+            ExportResolution::P480 => export_mp4::Resolution::P480,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -173,6 +221,10 @@ pub async fn export_mp4(
     let app_for_progress = app.clone();
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
     let cancel_for_worker = cancel.clone();
+    let options = export_mp4::ExportOptions {
+        quality: args.quality.into(),
+        resolution: args.resolution.into(),
+    };
     thread::spawn(move || {
         let on_progress = move |p: export_mp4::ExportProgress| {
             let _ = app_for_progress.emit(
@@ -185,6 +237,7 @@ pub async fn export_mp4(
             &source,
             &output,
             &args.cutlist,
+            options,
             cancel_for_worker,
             on_progress,
         );

@@ -4,6 +4,7 @@ import type {
   CutList,
   DetectParams,
   DiagnosticInfo,
+  ExportOptions,
   ExportProgressEvent,
   VideoInfo,
 } from "./types";
@@ -39,8 +40,17 @@ export async function exportMp4(
   source: string,
   output: string,
   cutlist: CutList,
+  options: ExportOptions,
 ): Promise<void> {
-  await invoke("export_mp4", { args: { source, output, cutlist } });
+  await invoke("export_mp4", {
+    args: {
+      source,
+      output,
+      cutlist,
+      quality: options.quality,
+      resolution: options.resolution,
+    },
+  });
 }
 
 export async function cancelExport(): Promise<void> {

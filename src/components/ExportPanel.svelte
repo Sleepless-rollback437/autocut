@@ -1,7 +1,8 @@
 <script lang="ts">
   import { save } from "@tauri-apps/plugin-dialog";
-  import { revealInFinder } from "../lib/api";
+  import { diagnosticInfo, revealInFinder } from "../lib/api";
   import { editor } from "../lib/store.svelte";
+  import type { ExportQuality, ExportResolution } from "../lib/types";
 
   function basename(p: string): string {
     return p.split(/[/\\]/).pop() ?? p;
@@ -34,6 +35,40 @@
     await editor.exportFcpxml(out, title);
   }
 
+  let copyState = $state<"idle" | "copied" | "failed">("idle");
+
+  /// Bundle the error message together with diagnostic info (app version,
+  /// OS, sidecar paths) and the current export settings. Gives the
+  /// developer enough to reproduce the failure without a back-and-forth.
+  async function copyErrorReport() {
+    if (!editor.error) return;
+    try {
+      const diag = await diagnosticInfo();
+      const lines = [
+        "autocut error report",
+        "====================",
+        `app version : ${diag.app_version}`,
+        `platform    : ${diag.target_os}/${diag.target_arch}`,
+        `ffmpeg      : ${diag.ffmpeg_exists ? "ok" : "MISSING"} ${diag.ffmpeg_path ?? ""}`,
+        `ffprobe     : ${diag.ffprobe_exists ? "ok" : "MISSING"} ${diag.ffprobe_path ?? ""}`,
+        editor.video
+          ? `source      : ${editor.video.width}x${editor.video.height} @ ${editor.video.fps.toFixed(3)}fps, ${editor.video.duration.toFixed(2)}s`
+          : "source      : (no video loaded)",
+        `quality     : ${editor.exportOptions.quality}`,
+        `resolution  : ${editor.exportOptions.resolution}`,
+        "",
+        "error",
+        "-----",
+        editor.error,
+      ];
+      await navigator.clipboard.writeText(lines.join("\n"));
+      copyState = "copied";
+    } catch {
+      copyState = "failed";
+    }
+    setTimeout(() => (copyState = "idle"), 2200);
+  }
+
   let canExport = $derived(!!editor.cutlist && editor.jobStatus === "idle");
   // Disabled keeps are excluded from the export, so don't count them.
   let keptDuration = $derived(
@@ -45,6 +80,26 @@
   );
   let totalDuration = $derived(editor.video?.duration ?? 0);
   let keptPct = $derived(totalDuration > 0 ? (keptDuration / totalDuration) * 100 : 0);
+
+  const qualityOptions: { value: ExportQuality; label: string; hint: string }[] = [
+    { value: "high", label: "high", hint: "crf 18 · ~visually lossless" },
+    { value: "medium", label: "medium", hint: "crf 22 · good for share" },
+    { value: "small", label: "small", hint: "crf 26 · smallest file" },
+  ];
+
+  const resolutionOptions: { value: ExportResolution; label: string }[] = [
+    { value: "source", label: "source" },
+    { value: "1080p", label: "1080p" },
+    { value: "720p", label: "720p" },
+    { value: "480p", label: "480p" },
+  ];
+
+  // FCPXML doesn't re-encode so quality/resolution don't apply — surface
+  // that visually by dimming the picker when the user is about to export
+  // an FCPXML. Pickers stay clickable so people can flip presets while
+  // deciding which format to use.
+  let activeQuality = $derived(editor.exportOptions.quality);
+  let activeResolution = $derived(editor.exportOptions.resolution);
 </script>
 
 <section class="card">
@@ -64,6 +119,37 @@
   </header>
 
   <div class="card-body">
+    <div class="opt">
+      <div class="opt-label">quality</div>
+      <div class="seg" role="radiogroup" aria-label="Quality">
+        {#each qualityOptions as q (q.value)}
+          <button
+            type="button"
+            class="seg-btn"
+            class:active={activeQuality === q.value}
+            onclick={() => (editor.exportOptions.quality = q.value)}
+            title={q.hint}
+            aria-pressed={activeQuality === q.value}
+          >{q.label}</button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="opt">
+      <div class="opt-label">resolution</div>
+      <div class="seg" role="radiogroup" aria-label="Resolution">
+        {#each resolutionOptions as r (r.value)}
+          <button
+            type="button"
+            class="seg-btn"
+            class:active={activeResolution === r.value}
+            onclick={() => (editor.exportOptions.resolution = r.value)}
+            aria-pressed={activeResolution === r.value}
+          >{r.label}</button>
+        {/each}
+      </div>
+    </div>
+
     <div class="export-row">
       <button class="btn btn-primary" onclick={exportMp4} disabled={!canExport}>
         <span class="mono">▸</span> mp4
@@ -118,26 +204,94 @@
 
     {#if editor.error}
       <div class="error">
-        <span class="dot dot-neg"></span>
-        <span class="mono">{editor.error}</span>
+        <div class="error-head">
+          <span class="dot dot-neg"></span>
+          <span class="mono error-title">export failed</span>
+          <button
+            class="copy-btn"
+            onclick={copyErrorReport}
+            title="Copy a full error report to the clipboard so you can paste it in a bug report"
+          >
+            {#if copyState === "copied"}copied ✓
+            {:else if copyState === "failed"}copy failed
+            {:else}copy details{/if}
+          </button>
+        </div>
+        <pre class="error-body mono">{editor.error}</pre>
       </div>
     {/if}
   </div>
 </section>
 
 <style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .card-body {
+    display: grid;
+    gap: 12px;
+  }
+
+  .opt {
+    display: grid;
+    gap: 6px;
+  }
+  .opt-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+  .seg {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .seg-btn {
+    height: 28px;
+    background: transparent;
+    border: 0;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 0 4px;
+    min-width: 0;
+    transition: background 120ms, color 120ms;
+  }
+  .seg-btn + .seg-btn {
+    border-left: 1px solid var(--border);
+  }
+  .seg-btn:hover:not(.active) {
+    background: var(--elevated);
+    color: var(--foreground);
+  }
+  .seg-btn.active {
+    background: var(--elevated);
+    color: var(--foreground);
+    box-shadow: inset 0 -2px 0 var(--accent);
+  }
+
   .export-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    margin-top: 4px;
   }
   .hint {
-    margin: 12px 0 0;
+    margin: 0;
     font-size: 11px;
     line-height: 1.5;
   }
   .progress {
-    margin-top: 14px;
     display: grid;
     gap: 6px;
   }
@@ -170,12 +324,11 @@
     transition: width 240ms ease-out;
   }
   .progress .btn-danger {
-    margin-top: 4px;
+    margin-top: 2px;
     justify-self: start;
   }
 
   .exported {
-    margin-top: 14px;
     padding: 10px 12px;
     background: hsl(142 71% 55% / 0.06);
     border: 1px solid hsl(142 71% 55% / 0.3);
@@ -216,18 +369,58 @@
     width: 26px;
     padding: 0;
   }
+
   .error {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    padding: 8px 10px;
+    display: grid;
+    gap: 6px;
+    padding: 10px 10px 8px;
     background: hsl(0 84% 65% / 0.06);
     border: 1px solid hsl(0 84% 65% / 0.25);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
+  }
+  .error-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .error-head .dot { flex-shrink: 0; }
+  .error-title {
     font-size: 11px;
     color: var(--neg);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex: 1;
+  }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid hsl(0 84% 65% / 0.35);
+    color: var(--neg);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+    transition: background 120ms, border-color 120ms;
+  }
+  .copy-btn:hover {
+    background: hsl(0 84% 65% / 0.12);
+    border-color: var(--neg);
+  }
+  .error-body {
+    margin: 0;
+    padding: 8px 10px;
+    background: hsl(0 0% 0% / 0.35);
+    border: 1px solid hsl(0 84% 65% / 0.2);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--foreground);
+    max-height: 160px;
+    overflow: auto;
+    white-space: pre-wrap;
     word-break: break-word;
   }
-  .error .dot { margin-top: 5px; flex-shrink: 0; }
 </style>

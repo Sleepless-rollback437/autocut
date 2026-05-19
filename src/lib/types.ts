@@ -34,6 +34,14 @@ export type DetectParams = {
   preview_range: [number, number] | null;
 };
 
+export type ExportQuality = "high" | "medium" | "small";
+export type ExportResolution = "source" | "1080p" | "720p" | "480p";
+
+export type ExportOptions = {
+  quality: ExportQuality;
+  resolution: ExportResolution;
+};
+
 export type ExportProgressEvent = {
   pct: number;
   message: string;

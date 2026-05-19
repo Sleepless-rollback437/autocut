@@ -73,21 +73,45 @@
   // requestVideoFrameCallback fires per decoded frame, so the jump lands
   // within one frame of entering the remove region. Fallback to rAF for
   // browsers without rVFC (Firefox at time of writing).
+  //
+  // Skip strategy:
+  //   1. Pre-roll: when the playhead enters the last ~80ms of a keep that
+  //      precedes a remove, jump straight to the next keep's start. The
+  //      old "wait until we cross into the remove and then jump" approach
+  //      always rendered 1-2 frames of the silent gap, which read as a
+  //      stutter on short cuts.
+  //   2. Post-detect: if we somehow land inside an omitted interval (e.g.
+  //      from a manual seek), jump to its end.
+  // The lookahead window matches a 60fps frame budget so we never schedule
+  // a skip more than ~5 frames in advance.
+  const SKIP_LOOKAHEAD = 0.08;
+
   $effect(() => {
     if (!videoEl) return;
     const v = videoEl;
     let cancelled = false;
-    let handle = 0;
+    let lastSkipTarget = -1;
 
     function tick() {
       if (cancelled) return;
       const t = v.currentTime;
       editor.currentTime = t;
       if (editor.skipRemoved && editor.cutlist) {
-        for (const c of editor.cutlist.intervals) {
+        const intervals = editor.cutlist.intervals;
+        for (let i = 0; i < intervals.length; i++) {
+          const c = intervals[i];
           const isOmitted = c.kind === "remove" || (c.kind === "keep" && c.disabled);
-          if (isOmitted && t >= c.start && t < c.end - 0.02) {
-            v.currentTime = c.end;
+          if (!isOmitted) continue;
+          // Already inside an omitted interval: jump out immediately.
+          if (t >= c.start && t < c.end - 0.005) {
+            performSkip(c.end);
+            break;
+          }
+          // Approaching an omitted interval from the kept side: skip a few
+          // frames before we'd cross the boundary so the user never sees
+          // the dead frame.
+          if (t < c.start && c.start - t < SKIP_LOOKAHEAD) {
+            performSkip(c.end);
             break;
           }
         }
@@ -95,37 +119,51 @@
       schedule();
     }
 
+    function performSkip(target: number) {
+      // Avoid hammering currentTime= when we already requested this exact
+      // skip — the browser is mid-seek and re-assigning the value can
+      // cause an audible click as the audio context resets.
+      if (Math.abs(lastSkipTarget - target) < 0.005) return;
+      lastSkipTarget = target;
+      v.currentTime = target;
+    }
+
     function schedule() {
       if (cancelled) return;
       // While paused, fall back to a single timeupdate-driven refresh so we
       // don't spin a rAF loop indefinitely.
       if (v.paused || v.ended) {
-        handle = window.setTimeout(tick, 100);
+        window.setTimeout(tick, 100);
         return;
       }
       const anyV = v as unknown as {
         requestVideoFrameCallback?: (cb: () => void) => number;
       };
       if (anyV.requestVideoFrameCallback) {
-        handle = anyV.requestVideoFrameCallback(tick);
+        anyV.requestVideoFrameCallback(tick);
       } else {
-        handle = requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       }
     }
 
     function start() { cancelled = false; schedule(); }
     function stop() { cancelled = true; }
+    const onSeeked = () => {
+      editor.currentTime = v.currentTime;
+      lastSkipTarget = -1;
+    };
 
     v.addEventListener("play", start);
     v.addEventListener("playing", start);
     v.addEventListener("pause", () => { editor.currentTime = v.currentTime; });
-    v.addEventListener("seeked", () => { editor.currentTime = v.currentTime; });
+    v.addEventListener("seeked", onSeeked);
     schedule();
 
     return () => {
       stop();
       v.removeEventListener("play", start);
       v.removeEventListener("playing", start);
+      v.removeEventListener("seeked", onSeeked);
     };
   });
 </script>
