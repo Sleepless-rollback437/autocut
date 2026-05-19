@@ -6,12 +6,12 @@
     <title>//autocut</title>
     <meta
       name="description"
-      content="Drop a video, remove silent gaps, export an MP4 or send the timeline to DaVinci Resolve / Premiere."
+      content="Remove silent gaps from videos in seconds. Send your timeline to DaVinci Resolve or Premiere, or export an MP4."
     />
     <meta property="og:title" content="//autocut" />
     <meta
       property="og:description"
-      content="Drop a video, remove silent gaps, export."
+      content="Remove silent gaps from videos in seconds. Send your timeline to DaVinci Resolve or Premiere, or export an MP4."
     />
     <meta property="og:image" content="/autocut.webp" />
     <meta property="og:type" content="website" />
@@ -21,55 +21,97 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <main class="container">
-      <header class="head">
-        <h1 class="wordmark">//autocut</h1>
+    <header class="topbar mono" aria-label="Build metadata">
+      <span class="topbar-cell">
+        <span class="rec" aria-hidden="true"></span>
+        REC&nbsp;·&nbsp;v0.4.2
+      </span>
+      <span class="topbar-cell topbar-center">APPLE&nbsp;SILICON&nbsp;//&nbsp;macOS&nbsp;SONOMA+</span>
+      <span class="topbar-cell topbar-right">
+        <a href="https://github.com/cobanov/autocut">SRC&nbsp;↗</a>
+      </span>
+    </header>
+
+    <main class="stage">
+      <section class="hero">
+        <p class="kicker mono">CH&nbsp;01&nbsp;—&nbsp;A&nbsp;VIDEO&nbsp;UTILITY</p>
+
+        <h1 class="wordmark">
+          <span class="slash mono">//</span><span class="word">autocut</span>
+        </h1>
+
         <p class="tagline">
-          Remove silent gaps from videos in seconds. Send your timeline to
-          <strong>DaVinci Resolve</strong> or <strong>Premiere</strong>, or just
-          export an MP4. Drop a video, tweak a couple of sliders, done.
+          Remove silent gaps from videos in seconds. Send your timeline straight
+          to <strong>DaVinci&nbsp;Resolve</strong> or <strong>Premiere</strong>,
+          or just export an MP4. Drop a video, tweak a couple of sliders, done.
         </p>
-      </header>
 
-      <figure class="hero">
-        <img
-          src="/autocut.webp"
-          alt="autocut showing a video timeline with silent segments marked"
-          width="2784"
-          height="1824"
-          loading="eager"
-          decoding="async"
-        />
-      </figure>
+        <figure class="frame">
+          <span class="bracket bracket-tl" aria-hidden="true"></span>
+          <span class="bracket bracket-tr" aria-hidden="true"></span>
+          <span class="bracket bracket-bl" aria-hidden="true"></span>
+          <span class="bracket bracket-br" aria-hidden="true"></span>
+          <img
+            src="/autocut.webp"
+            alt="autocut showing a video timeline with silent segments highlighted"
+            width="2784"
+            height="1824"
+            loading="eager"
+            decoding="async"
+          />
+          <figcaption class="frame-cap mono">
+            <span>FIG.&nbsp;01</span>
+            <span class="cap-rule" aria-hidden="true"></span>
+            <span>TIMELINE&nbsp;VIEW</span>
+            <span class="cap-dim">00:00:42:18</span>
+          </figcaption>
+        </figure>
 
-      <section class="actions">
-        <a
-          class="btn btn-primary"
-          href="https://github.com/cobanov/autocut/releases/latest"
-          aria-label="Download autocut for macOS"
-        >
-          Download for macOS
-        </a>
-        <a
-          class="btn btn-ghost"
-          href="https://github.com/cobanov/autocut"
-        >
-          View on GitHub
-        </a>
+        <div class="actions">
+          <a
+            class="btn btn-primary"
+            href="https://github.com/cobanov/autocut/releases/latest"
+          >
+            <span class="btn-label mono">DOWNLOAD</span>
+            <span class="btn-glyph" aria-hidden="true">↓</span>
+          </a>
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/cobanov/autocut"
+          >
+            <span class="btn-label mono">SOURCE</span>
+            <span class="btn-glyph" aria-hidden="true">→</span>
+          </a>
+        </div>
+
+        <p class="brew-line mono">
+          <span class="brew-prompt">$</span>
+          <code class="brew">brew install --cask cobanov/tap/autocut</code>
+        </p>
       </section>
-
-      <code class="brew mono">brew install --cask cobanov/tap/autocut</code>
-
-      <p class="meta mono">
-        Apple Silicon · macOS Sonoma+ · v0.4.2 ·
-        <a href="https://cobanov.dev">cobanov.dev</a>
-      </p>
     </main>
+
+    <footer class="ticker mono" aria-hidden="true">
+      <div class="ticker-track">
+        <span>SILERO&nbsp;VAD</span><span class="dot">·</span>
+        <span>FCPXML&nbsp;EXPORT</span><span class="dot">·</span>
+        <span>MP4&nbsp;EXPORT</span><span class="dot">·</span>
+        <span>LOCAL&nbsp;FIRST</span><span class="dot">·</span>
+        <span>NO&nbsp;UPLOADS</span><span class="dot">·</span>
+        <span>OPEN&nbsp;SOURCE</span><span class="dot">·</span>
+        <span>SILERO&nbsp;VAD</span><span class="dot">·</span>
+        <span>FCPXML&nbsp;EXPORT</span><span class="dot">·</span>
+        <span>MP4&nbsp;EXPORT</span><span class="dot">·</span>
+        <span>LOCAL&nbsp;FIRST</span><span class="dot">·</span>
+        <span>NO&nbsp;UPLOADS</span><span class="dot">·</span>
+        <span>OPEN&nbsp;SOURCE</span><span class="dot">·</span>
+      </div>
+    </footer>
   </body>
 </html>
