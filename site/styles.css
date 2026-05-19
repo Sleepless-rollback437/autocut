@@ -88,9 +88,14 @@ a:hover {
 .tagline {
   font-size: clamp(14px, 1.8vw, 16px);
   color: var(--muted);
-  max-width: 460px;
+  max-width: 540px;
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.5;
+}
+
+.tagline strong {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .hero {
@@ -104,7 +109,7 @@ a:hover {
 
 .hero img {
   width: 100%;
-  max-height: min(58vh, 520px);
+  max-height: min(50vh, 460px);
   height: auto;
   object-fit: contain;
   display: block;
@@ -161,6 +166,17 @@ a:hover {
   background: var(--surface);
 }
 
+.brew {
+  display: inline-block;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--foreground);
+  user-select: all;
+}
+
 .meta {
   font-size: 12px;
   color: var(--muted-2);
@@ -183,7 +199,7 @@ a:hover {
     padding: 20px 16px;
   }
   .hero img {
-    max-height: 50vh;
+    max-height: 44vh;
   }
   .actions {
     width: 100%;
@@ -191,6 +207,13 @@ a:hover {
   }
   .btn {
     width: 100%;
+  }
+  .brew {
+    font-size: 11.5px;
+    padding: 7px 10px;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
   }
 }
 
