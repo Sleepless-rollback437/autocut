@@ -155,8 +155,11 @@
 
   .stage {
     display: grid;
-    place-items: center;
-    padding: 32px 32px 48px;
+    /* Anchor the hero near the top instead of centering it in the entire
+       viewport. On tall windows true-centering pushed the footer (brew
+       links etc.) so far down that it felt disconnected from the hero. */
+    place-items: start center;
+    padding: max(56px, 8vh) 32px 32px;
     overflow-y: auto;
     background:
       radial-gradient(circle at 50% 0%, hsl(213 94% 68% / 0.05), transparent 50%),

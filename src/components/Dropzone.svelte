@@ -183,7 +183,9 @@
   .empty {
     width: min(720px, 100%);
     display: grid;
-    gap: 24px;
+    /* Tight gap between hero card and the footer line so the brew install
+       URL stays visually grouped with the card rather than floating below. */
+    gap: 14px;
     padding: 12px;
   }
 
@@ -193,10 +195,10 @@
      the user drags a file over the window, at which point both the outer
      dashed stroke and the inner radial glow lift to the accent color. */
   .hero {
-    padding: 48px 40px 36px;
+    padding: 40px 40px 32px;
     text-align: center;
     display: grid;
-    gap: 14px;
+    gap: 12px;
     place-items: center;
     background: linear-gradient(
         180deg,
