@@ -12,7 +12,13 @@ import {
   onExportProgress,
   openVideo,
 } from "./api";
-import type { Cut, CutList, DetectParams, VideoInfo } from "./types";
+import type {
+  Cut,
+  CutList,
+  DetectParams,
+  ExportOptions,
+  VideoInfo,
+} from "./types";
 
 type JobStatus = "idle" | "detecting" | "exporting";
 
@@ -62,8 +68,10 @@ class EditorStore {
   /// the user starts a new export or closes the video.
   lastExport = $state<{ path: string; format: "mp4" | "fcpxml" } | null>(null);
   params = $state<DetectParams>({ ...DEFAULTS });
-  usePreviewRange = $state(false);
-  previewRange = $state<[number, number]>([0, 0]);
+  exportOptions = $state<ExportOptions>({
+    quality: "medium",
+    resolution: "source",
+  });
   currentTime = $state(0);
   skipRemoved = $state(true);
   jobStatus = $state<JobStatus>("idle");
@@ -97,8 +105,6 @@ class EditorStore {
       const info = await openVideo(path);
       this.video = info;
       this.currentTime = 0;
-      this.previewRange = [0, Math.min(info.duration, 60)];
-      this.usePreviewRange = false;
       // Detection is manual on first run so the preview opens immediately.
       // After the first detect, slider changes auto-rerun (see scheduleDetect).
       // Waveform extraction is fire-and-forget — the player works without it.
@@ -198,14 +204,7 @@ class EditorStore {
     this.jobStatus = "detecting";
     this.error = null;
     try {
-      const params: DetectParams = {
-        ...this.params,
-        preview_range:
-          this.usePreviewRange &&
-          this.previewRange[1] > this.previewRange[0]
-            ? this.previewRange
-            : null,
-      };
+      const params: DetectParams = { ...this.params, preview_range: null };
       const res = await detectSilence(
         this.video.path,
         this.video.duration,
@@ -221,15 +220,6 @@ class EditorStore {
 
   async exportMp4(outputPath: string) {
     if (!this.video || !this.cutlist) return;
-    if (this.usePreviewRange) {
-      // Export always runs on the full video. Before exporting we re-detect on
-      // the whole timeline so the cutlist reflects every segment, not just
-      // the preview window.
-      const prevUse = this.usePreviewRange;
-      this.usePreviewRange = false;
-      await this.runDetectNow();
-      this.usePreviewRange = prevUse;
-    }
     const normalized = this.normalizedCutlist();
     if (!normalized) return;
     this.lastExport = null;
@@ -241,7 +231,7 @@ class EditorStore {
     });
     this.progressUnlisten = unlisten;
     try {
-      await apiExportMp4(this.video.path, outputPath, normalized);
+      await apiExportMp4(this.video.path, outputPath, normalized, this.exportOptions);
       this.exportProgress = { pct: 100, message: "done" };
       this.lastExport = { path: outputPath, format: "mp4" };
       announceExport(outputPath, "mp4");
@@ -256,12 +246,6 @@ class EditorStore {
 
   async exportFcpxml(outputPath: string, title: string) {
     if (!this.video || !this.cutlist) return;
-    if (this.usePreviewRange) {
-      const prevUse = this.usePreviewRange;
-      this.usePreviewRange = false;
-      await this.runDetectNow();
-      this.usePreviewRange = prevUse;
-    }
     const normalized = this.normalizedCutlist();
     if (!normalized) return;
     this.lastExport = null;
@@ -295,7 +279,6 @@ class EditorStore {
     this.lastExport = null;
     this.hoveredKeepIndex = null;
     this.currentTime = 0;
-    this.usePreviewRange = false;
     if (this.detectTimer) {
       clearTimeout(this.detectTimer);
       this.detectTimer = null;

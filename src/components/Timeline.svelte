@@ -30,6 +30,40 @@
     }
   });
 
+  // Keep the playhead inside the visible window. When it drifts past the
+  // right edge during playback (or when a click in the cuts panel seeks
+  // somewhere off-screen), recenter the view on the playhead so the user
+  // can see what's happening. Only auto-pans when zoomed in (otherwise
+  // the entire timeline is visible already). The 8% margin gives the
+  // playhead some headroom before triggering, so it doesn't constantly
+  // micro-shift while playing through the middle of the window.
+  $effect(() => {
+    const t = editor.currentTime;
+    if (!duration) return;
+    const span = viewEnd - viewStart;
+    if (span >= duration - 0.001) return;
+    const margin = span * 0.08;
+    const tooLate = t > viewEnd - margin;
+    const tooEarly = t < viewStart + margin;
+    if (!tooLate && !tooEarly) return;
+    // If the playhead is fully outside the window (e.g. a click in the
+    // cuts panel jumped to a far point), recenter. If it just slipped past
+    // the edge during playback, scroll the window forward by 80% of its
+    // span so the next chunk fits on screen without disorienting the eye.
+    const fullyOutside = t < viewStart || t > viewEnd;
+    let newStart: number;
+    if (fullyOutside) {
+      newStart = t - span / 2;
+    } else if (tooLate) {
+      newStart = viewStart + span * 0.8;
+    } else {
+      newStart = viewStart - span * 0.8;
+    }
+    const [s, en] = clampWindow(newStart, newStart + span);
+    viewStart = s;
+    viewEnd = en;
+  });
+
   let viewSpan = $derived(Math.max(0.001, viewEnd - viewStart));
   let isZoomed = $derived(duration > 0 && viewSpan < duration - 0.001);
 
@@ -250,11 +284,6 @@
     editor.currentTime >= viewStart && editor.currentTime <= viewEnd,
   );
   let playheadPct = $derived(((editor.currentTime - viewStart) / viewSpan) * 100);
-  let previewVisible = $derived(
-    editor.usePreviewRange &&
-      editor.previewRange[1] > viewStart &&
-      editor.previewRange[0] < viewEnd,
-  );
 
   // ---- waveform path (visible slice) ----
 
@@ -428,13 +457,6 @@
           </div>
         {/each}
 
-        {#if previewVisible}
-          <div
-            class="preview-band"
-            style:left="{((editor.previewRange[0] - viewStart) / viewSpan) * 100}%"
-            style:width="{((editor.previewRange[1] - editor.previewRange[0]) / viewSpan) * 100}%"
-          ></div>
-        {/if}
         {#if playheadInView}
           <div class="playhead" style:left="{playheadPct}%"></div>
         {/if}
@@ -745,15 +767,6 @@
     box-shadow: 0 0 6px hsl(0 0% 100% / 0.6);
     pointer-events: none;
     z-index: 4;
-  }
-  .preview-band {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    background: hsl(213 94% 68% / 0.06);
-    border-left: 1px dashed var(--accent);
-    border-right: 1px dashed var(--accent);
-    pointer-events: none;
   }
   .hint {
     position: absolute;

@@ -10,7 +10,7 @@ use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use anyhow::{anyhow, Context, Result};
@@ -22,11 +22,72 @@ pub struct ExportProgress {
     pub message: String,
 }
 
+/// Quality preset chosen by the user. CRF is libx264's rate-distortion knob:
+/// lower = higher quality + bigger file. Audio bitrate scales with it.
+#[derive(Debug, Clone, Copy)]
+pub enum Quality {
+    High,
+    Medium,
+    Small,
+}
+
+impl Quality {
+    fn crf(self) -> u8 {
+        match self {
+            Quality::High => 18,
+            Quality::Medium => 22,
+            Quality::Small => 26,
+        }
+    }
+    fn audio_bitrate(self) -> &'static str {
+        match self {
+            Quality::High => "192k",
+            Quality::Medium => "128k",
+            Quality::Small => "96k",
+        }
+    }
+}
+
+/// Output resolution. `Source` keeps the original dimensions; the numeric
+/// variants downscale to that target height (using `-2` for width to keep
+/// the aspect ratio while staying divisible by 2 for h264).
+#[derive(Debug, Clone, Copy)]
+pub enum Resolution {
+    Source,
+    P1080,
+    P720,
+    P480,
+}
+
+impl Resolution {
+    fn target_height(self) -> Option<u32> {
+        match self {
+            Resolution::Source => None,
+            Resolution::P1080 => Some(1080),
+            Resolution::P720 => Some(720),
+            Resolution::P480 => Some(480),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExportOptions {
+    pub quality: Quality,
+    pub resolution: Resolution,
+}
+
+impl Default for ExportOptions {
+    fn default() -> Self {
+        Self { quality: Quality::Medium, resolution: Resolution::Source }
+    }
+}
+
 pub fn export(
     ffmpeg: &Path,
     source: &Path,
     output: &Path,
     cutlist: &CutList,
+    options: ExportOptions,
     cancel: Arc<AtomicBool>,
     on_progress: impl FnMut(ExportProgress) + Send + 'static,
 ) -> Result<()> {
@@ -36,10 +97,21 @@ pub fn export(
     }
 
     let select = build_select_expr(cutlist);
+    // Append a scale filter only when downscaling is requested. `-2` on the
+    // width side asks ffmpeg to pick whatever keeps the aspect ratio and
+    // stays divisible by 2 (libx264 requirement).
+    let scale_chain = match options.resolution.target_height() {
+        Some(h) => format!(",scale=-2:{h}"),
+        None => String::new(),
+    };
     let filter_complex = format!(
-        "[0:v]select='{sel}',setpts=N/FRAME_RATE/TB[v];[0:a]aselect='{sel}',asetpts=N/SR/TB[a]",
-        sel = select
+        "[0:v]select='{sel}',setpts=N/FRAME_RATE/TB{scale}[v];[0:a]aselect='{sel}',asetpts=N/SR/TB[a]",
+        sel = select,
+        scale = scale_chain
     );
+
+    let crf = options.quality.crf().to_string();
+    let abr = options.quality.audio_bitrate();
 
     let mut cmd = Command::new(ffmpeg);
     cmd.args(["-y", "-hide_banner", "-nostats", "-progress", "pipe:2", "-loglevel", "error"])
@@ -47,8 +119,8 @@ pub fn export(
         .arg(source)
         .args(["-filter_complex", &filter_complex])
         .args(["-map", "[v]", "-map", "[a]"])
-        .args(["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"])
-        .args(["-c:a", "aac", "-b:a", "192k"])
+        .args(["-c:v", "libx264", "-preset", "veryfast", "-crf", &crf])
+        .args(["-c:a", "aac", "-b:a", abr])
         .arg(output);
     cmd.stdout(Stdio::null()).stderr(Stdio::piped());
 
@@ -58,7 +130,13 @@ pub fn export(
         .take()
         .ok_or_else(|| anyhow!("ffmpeg stderr unavailable"))?;
 
-    let on_progress = std::sync::Mutex::new(on_progress);
+    let on_progress = Mutex::new(on_progress);
+    // Keep a rolling buffer of the last few non-progress stderr lines so we
+    // can surface ffmpeg's actual error message when the encode fails.
+    // Anything matching `key=value` is a progress field; the real diagnostics
+    // are the plain-prose lines.
+    let stderr_tail: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let stderr_tail_writer = stderr_tail.clone();
     let cancel_thread = cancel.clone();
     let reader = thread::spawn(move || -> Result<()> {
         let buf = BufReader::new(stderr);
@@ -74,6 +152,17 @@ pub fn export(
                     let msg = format!("encoded {:.2}s of {:.2}s kept", seconds, kept_total);
                     let mut cb = on_progress.lock().unwrap();
                     cb(ExportProgress { pct: pct as f32, message: msg });
+                }
+                continue;
+            }
+            // Only keep the last 20 prose lines — enough to identify the
+            // failure without dumping every progress key.
+            if !line.contains('=') && !line.trim().is_empty() {
+                let mut tail = stderr_tail_writer.lock().unwrap();
+                tail.push(line);
+                if tail.len() > 20 {
+                    let drop = tail.len() - 20;
+                    tail.drain(0..drop);
                 }
             }
         }
@@ -92,7 +181,13 @@ pub fn export(
             Ok(Some(status)) => {
                 let _ = reader.join();
                 if !status.success() {
-                    return Err(anyhow!("ffmpeg exited with {status}"));
+                    let tail = stderr_tail.lock().unwrap();
+                    let detail = if tail.is_empty() {
+                        String::new()
+                    } else {
+                        format!("\nffmpeg said:\n{}", tail.join("\n"))
+                    };
+                    return Err(anyhow!("ffmpeg exited with {status}{detail}"));
                 }
                 break;
             }
