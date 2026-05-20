@@ -1,15 +1,23 @@
-//! Cut MP4 export: feed the kept intervals as ffmpeg `filter_complex select`
-//! expressions. Output is re-encoded (libx264 + aac), mirroring the POC.
-//! Lossless smart-cut is deferred.
+//! Cut MP4 export: feed the kept intervals to ffmpeg via the concat demuxer.
+//! A temp list file describes each kept range as a `file` + `inpoint` +
+//! `outpoint` triple, ffmpeg seeks to each in turn and re-encodes (libx264 +
+//! aac). Lossless smart-cut is deferred.
+//!
+//! Why concat demuxer and not `filter_complex select`: building a single
+//! `select=between(t,a,b)+between(t,c,d)+...` expression scales linearly with
+//! the number of keeps. Past a few hundred intervals ffmpeg's expression
+//! parser fails to allocate the parse tree ("Cannot allocate memory" inside
+//! AVFilterGraph init), killing the export. The concat demuxer reads a flat
+//! list and has no such limit.
 //!
 //! Progress is parsed from ffmpeg stderr `out_time_us=` lines (emitted via
 //! `-progress pipe:2`). Total target duration is the sum of kept intervals
 //! since the output stream's wall-clock is shorter than the source.
 
 use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -101,15 +109,11 @@ pub fn export(
         return Err(anyhow!("nothing to keep; cutlist has zero kept duration"));
     }
 
-    let select = build_select_expr(cutlist);
-    // Append a scale filter only when downscaling is requested. `-2` on the
-    // width side asks ffmpeg to pick whatever keeps the aspect ratio and
-    // stays divisible by 2 (libx264 requirement).
-    let scale_chain = match options.resolution.target_height() {
-        Some(h) => format!(",scale=-2:{h}"),
-        None => String::new(),
-    };
-    let filter_complex = build_filter_complex(&select, &scale_chain, options.has_audio);
+    let list_path = concat_list_path();
+    std::fs::write(&list_path, build_concat_list(source, cutlist))
+        .with_context(|| format!("writing concat list at {}", list_path.display()))?;
+    // Defer file removal so it persists even if we early-return on error —
+    // makes failures debuggable. Cleaned up at the bottom of the happy path.
 
     let crf = options.quality.crf().to_string();
 
@@ -123,14 +127,19 @@ pub fn export(
         "-loglevel",
         "error",
     ])
+    .args(["-f", "concat", "-safe", "0"])
     .arg("-i")
-    .arg(source)
-    .args(["-filter_complex", &filter_complex])
-    .args(["-map", "[v]"])
+    .arg(&list_path)
     .args(["-c:v", "libx264", "-preset", "veryfast", "-crf", &crf]);
+    // Downscale via -vf when requested. `-2` on the width side asks ffmpeg to
+    // pick whatever keeps the aspect ratio and stays divisible by 2 (libx264
+    // requirement). Concat demuxer produces continuous timestamps across
+    // segments on its own, no setpts needed.
+    if let Some(h) = options.resolution.target_height() {
+        cmd.args(["-vf", &format!("scale=-2:{h}")]);
+    }
     if options.has_audio {
-        cmd.args(["-map", "[a]"])
-            .args(["-c:a", "aac", "-b:a", options.quality.audio_bitrate()]);
+        cmd.args(["-c:a", "aac", "-b:a", options.quality.audio_bitrate()]);
     } else {
         cmd.arg("-an");
     }
@@ -186,12 +195,12 @@ pub fn export(
     });
 
     // Cancellation: poll the flag and kill the child if set.
-    loop {
+    let outcome: Result<()> = loop {
         if cancel.load(Ordering::SeqCst) {
             let _ = child.kill();
             let _ = child.wait();
             let _ = reader.join();
-            return Err(anyhow!("export cancelled"));
+            break Err(anyhow!("export cancelled"));
         }
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -203,40 +212,53 @@ pub fn export(
                     } else {
                         format!("\nffmpeg said:\n{}", tail.join("\n"))
                     };
-                    return Err(anyhow!("ffmpeg exited with {status}{detail}"));
+                    break Err(anyhow!("ffmpeg exited with {status}{detail}"));
                 }
-                break;
+                break Ok(());
             }
             Ok(None) => thread::sleep(std::time::Duration::from_millis(100)),
-            Err(e) => return Err(anyhow!("waiting on ffmpeg: {e}")),
+            Err(e) => break Err(anyhow!("waiting on ffmpeg: {e}")),
         }
+    };
+
+    // Only clean up the concat list on success; leave it on disk on failure so
+    // the user (or a bug report) can inspect what we asked ffmpeg to do.
+    if outcome.is_ok() {
+        let _ = std::fs::remove_file(&list_path);
     }
-    Ok(())
+    outcome
 }
 
-fn build_select_expr(cutlist: &CutList) -> String {
-    let parts: Vec<String> = cutlist
-        .kept_intervals()
-        .map(|c| format!("between(t,{:.6},{:.6})", c.start, c.end))
-        .collect();
-    if parts.is_empty() {
-        "0".to_string()
-    } else {
-        parts.join("+")
+/// Build a concat demuxer list (UTF-8, LF line endings) repeating the source
+/// path for every kept interval with `inpoint`/`outpoint` directives.
+///
+/// The path is wrapped in single quotes; embedded single quotes are escaped as
+/// `'\''` (close-quote, escaped-quote, reopen-quote — the standard POSIX
+/// shell idiom that ffmpeg's concat parser also accepts). Backslashes in
+/// Windows paths are literal inside single quotes; no escaping needed.
+fn build_concat_list(source: &Path, cutlist: &CutList) -> String {
+    let escaped = source.to_string_lossy().replace('\'', "'\\''");
+    let mut out = String::new();
+    out.push_str("ffconcat version 1.0\n");
+    for c in cutlist.kept_intervals() {
+        out.push_str(&format!("file '{escaped}'\n"));
+        out.push_str(&format!("inpoint {:.6}\n", c.start));
+        out.push_str(&format!("outpoint {:.6}\n", c.end));
     }
+    out
 }
 
-fn build_filter_complex(select: &str, scale_chain: &str, has_audio: bool) -> String {
-    let video_filter = format!(
-        "[0:v]select='{sel}',setpts=N/FRAME_RATE/TB{scale}[v]",
-        sel = select,
-        scale = scale_chain
-    );
-    if has_audio {
-        format!("{video_filter};[0:a]aselect='{select}',asetpts=N/SR/TB[a]")
-    } else {
-        video_filter
-    }
+/// Unique path inside the OS temp dir. PID + a process-local atomic counter
+/// guarantees no collision between concurrent exports (the cli never runs them
+/// in parallel today, but cheap insurance).
+fn concat_list_path() -> PathBuf {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!(
+        "autocut-concat-{}-{}.txt",
+        std::process::id(),
+        id
+    ))
 }
 
 #[cfg(test)]
@@ -245,7 +267,7 @@ mod tests {
     use crate::cutlist::{Cut, CutKind};
 
     #[test]
-    fn select_expr_joins_kept_intervals() {
+    fn concat_list_emits_one_entry_per_kept_interval() {
         let cl = CutList {
             source_duration: 10.0,
             intervals: vec![
@@ -266,33 +288,63 @@ mod tests {
                 },
             ],
         };
-        let s = build_select_expr(&cl);
-        assert!(s.contains("between(t,0.000000,1.000000)"));
-        assert!(s.contains("between(t,2.000000,3.500000)"));
-        assert!(s.contains("+"));
+        let list = build_concat_list(Path::new("/tmp/clip.mp4"), &cl);
+        assert!(list.starts_with("ffconcat version 1.0\n"), "{list}");
+        assert_eq!(list.matches("file '/tmp/clip.mp4'").count(), 2);
+        assert!(list.contains("inpoint 0.000000"));
+        assert!(list.contains("outpoint 1.000000"));
+        assert!(list.contains("inpoint 2.000000"));
+        assert!(list.contains("outpoint 3.500000"));
+        // The removed range must not appear as a keep entry.
+        assert!(!list.contains("inpoint 1.000000\noutpoint 2.000000"));
     }
 
     #[test]
-    fn select_expr_empty_when_no_keeps() {
+    fn concat_list_is_just_a_header_when_no_keeps() {
         let cl = CutList {
             source_duration: 5.0,
             intervals: vec![],
         };
-        assert_eq!(build_select_expr(&cl), "0");
+        let list = build_concat_list(Path::new("/tmp/clip.mp4"), &cl);
+        assert_eq!(list, "ffconcat version 1.0\n");
     }
 
     #[test]
-    fn filter_complex_omits_audio_when_source_has_no_audio() {
-        let filter = build_filter_complex("between(t,0.000000,1.000000)", "", false);
-        assert!(filter.contains("[0:v]select="));
-        assert!(!filter.contains("[0:a]"), "{filter}");
-        assert!(!filter.contains("[a]"), "{filter}");
+    fn concat_list_escapes_single_quotes_in_paths() {
+        let cl = CutList {
+            source_duration: 5.0,
+            intervals: vec![Cut {
+                start: 0.0,
+                end: 1.0,
+                kind: CutKind::Keep,
+            }],
+        };
+        let list = build_concat_list(Path::new("/tmp/it's mine.mp4"), &cl);
+        assert!(list.contains(r"file '/tmp/it'\''s mine.mp4'"), "{list}");
     }
 
     #[test]
-    fn filter_complex_includes_audio_when_source_has_audio() {
-        let filter = build_filter_complex("between(t,0.000000,1.000000)", "", true);
-        assert!(filter.contains("[0:a]aselect="), "{filter}");
-        assert!(filter.ends_with("[a]"), "{filter}");
+    fn concat_list_preserves_windows_backslash_paths() {
+        let cl = CutList {
+            source_duration: 5.0,
+            intervals: vec![Cut {
+                start: 0.0,
+                end: 1.0,
+                kind: CutKind::Keep,
+            }],
+        };
+        let list = build_concat_list(Path::new(r"C:\Users\me\my video.mp4"), &cl);
+        // Backslashes are literal inside single quotes; nothing should escape them.
+        assert!(
+            list.contains(r"file 'C:\Users\me\my video.mp4'"),
+            "{list}"
+        );
+    }
+
+    #[test]
+    fn concat_list_path_is_unique_per_call() {
+        let a = concat_list_path();
+        let b = concat_list_path();
+        assert_ne!(a, b);
     }
 }
